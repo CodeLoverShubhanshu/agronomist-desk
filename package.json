@@ -1,0 +1,17 @@
+{
+  "name": "gramik-agronomist-desk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gramik Agronomist Desk with agronomist logins, admin desk and Postgres storage",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "start": "node scripts/dev-server.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  }
+}

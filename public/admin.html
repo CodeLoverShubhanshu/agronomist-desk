@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Gramik Admin Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light;
+ --bg:#F3F6F4;--panel:#FFFFFF;--ink:#1D2A24;--muted:#61706A;--line:#DFE6E2;--soft:#F7FAF8;
+ --green:#2B5E45;--deep:#1F4A35;--mint:#E4F1E9;--leaf:#3E8E5E;
+ --hot:#C9353A;--hot-bg:#FCEBEC;--warm:#B8620F;--warm-bg:#FFF2E4;--blue:#2F5FA7;--blue-bg:#EAF1FB;--violet:#5B3FB0;--violet-bg:#F3EFFC;
+ --display:Outfit,"Mukta",system-ui,sans-serif;--body:Mukta,"Noto Sans Devanagari",system-ui,sans-serif}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.5 var(--body);padding:0 16px}
+button,select,input{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--display);margin:0;color:var(--deep)}
+.num{font-variant-numeric:tabular-nums}
+.app{max-width:1440px;margin:0 auto;padding:12px 0 48px;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;justify-content:space-between;background:linear-gradient(160deg,#2E6449,#1F4A35);color:#fff;border-radius:14px;padding:10px 14px 10px 20px}
+.brand b{display:block;font:600 18px var(--display)}.brand span{font-size:13px;color:#CFE3D6}
+.tabs{display:flex;flex-wrap:wrap;gap:4px}
+.tab{border:0;background:none;color:#E4F1E9;border-radius:9px;padding:8px 12px;font-weight:500;cursor:pointer}
+.tab:hover{background:rgba(255,255,255,.1)}.tab[aria-current="page"]{background:#fff;color:var(--deep)}
+.tab b{font:600 12px var(--display);border-radius:999px;padding:1px 7px;background:rgba(255,255,255,.18);margin-left:6px}.tab[aria-current="page"] b{background:var(--mint)}
+.tab:focus-visible,.ab:focus-visible{outline:2px solid #F2A65A;outline-offset:2px}
+.acct{display:flex;align-items:center;gap:8px}.acct small{color:#CFE3D6;font-size:13px}
+.ab{border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;border-radius:8px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer}
+.ab:hover{background:rgba(255,255,255,.18)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;min-width:0}
+.card h2{font-size:18px;font-weight:600;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}.card h2 small{font:400 14px var(--body);color:var(--muted)}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 16px}
+.head h1{font:700 clamp(22px,2.4vw,30px)/1.15 var(--display);letter-spacing:-.02em;color:var(--ink)}
+.head p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.seg{display:flex;gap:2px;background:#E9EFEC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;padding:6px 12px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:8px}
+.seg button[aria-pressed="true"]{background:#fff;color:var(--deep);box-shadow:0 1px 2px rgba(20,35,28,.12)}.seg button:focus-visible{outline:2px solid var(--green)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;border-top:4px solid var(--line)}
+.kpi span{font-size:13px;color:var(--muted);font-weight:500}.kpi b{font:700 28px/1.1 var(--display);letter-spacing:-.02em}.kpi small{font-size:12.5px;color:var(--muted)}
+.kpi.g{border-top-color:var(--leaf)}.kpi.b{border-top-color:var(--blue)}.kpi.w{border-top-color:#E8A15A}.kpi.r{border-top-color:var(--hot)}.kpi.v{border-top-color:var(--violet)}
+.tw{overflow-x:auto;margin:0 -4px;padding:0 4px}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 8px;border-top:1px solid #ECF0ED;vertical-align:top}
+th.n,td.n{text-align:right}
+tbody tr:hover td{background:var(--soft)}
+.who b{display:block;font-weight:600}.who span,.rm{font-size:12.5px;color:var(--muted)}
+.chip{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;background:#EEF1EF;color:#47524C;white-space:nowrap}
+.chip.ok{background:var(--mint);color:#2A6C45}.chip.hot{background:var(--hot-bg);color:var(--hot)}.chip.warm{background:var(--warm-bg);color:var(--warm)}.chip.blue{background:var(--blue-bg);color:var(--blue)}.chip.violet{background:var(--violet-bg);color:var(--violet)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--green);background:var(--green);color:#fff;border-radius:8px;padding:6px 12px;font-weight:600;cursor:pointer;font-size:14px;white-space:nowrap;text-decoration:none}
+.btn.ghost{background:#fff;color:var(--ink);border-color:var(--line)}.btn.ghost:hover{border-color:#B9C6BF}.btn.warn{background:var(--hot);border-color:var(--hot)}
+.btn:disabled{opacity:.5;cursor:default}.btn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.filters{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:12px 0}
+.filters input[type=search],.filters select{border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;min-width:0}
+.filters input[type=search]{flex:1 1 220px}
+.filters .sp{flex:1}
+.empty{color:var(--muted);text-align:center;padding:28px 8px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:18px;align-items:start}
+.bars{display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:1px solid var(--line);margin-top:14px}
+.bars>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:3px;font-size:11px;font-weight:600;min-width:0}
+.bars i{display:block;width:100%;max-width:28px;border-radius:4px 4px 0 0;background:#9CC5AC}.bars i.c{background:var(--green);border-radius:0}
+.bx{display:flex;gap:6px;margin-top:4px}.bx span{flex:1;text-align:center;font-size:11px;color:var(--muted);min-width:0;overflow:hidden}
+.lg{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}.lg span{display:inline-flex;align-items:center;gap:6px}.lg i{width:10px;height:10px;border-radius:3px}
+.meter{height:6px;border-radius:3px;background:#EEF1EF;overflow:hidden;margin-top:4px;min-width:60px}.meter i{display:block;height:100%;background:var(--leaf)}
+.ucards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:16px}
+.uc{display:flex;flex-direction:column;gap:12px}
+.uch{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.av{flex:0 0 40px;width:40px;height:40px;border-radius:50%;background:var(--mint);color:var(--deep);display:grid;place-items:center;font:700 14px var(--display)}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:15px;color:var(--ink);min-width:0}
+.field input:focus,.filters input:focus,.filters select:focus{outline:2px solid var(--leaf);outline-offset:1px}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.note{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}.note.hot{background:var(--hot-bg);border-color:#F2C6C8;color:var(--hot)}.note.ok{background:var(--mint);border-color:#C6E6D2;color:var(--deep)}
+details.danger{border-top:1px dashed var(--line);padding-top:10px}details.danger summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--hot)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:var(--deep);color:#fff;border-radius:10px;padding:9px 16px;z-index:60;font-size:15px;max-width:calc(100% - 32px)}
+.load{padding:60px 16px;text-align:center;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0}.list li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #ECF0ED;font-size:14px}.list li:first-child{border-top:0}
+@media (max-width:820px){.top{flex-direction:column;align-items:stretch}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><b>Gramik Admin Desk</b><span id="today"></span></div>
+    <nav class="tabs" id="tabs" aria-label="Admin sections"></nav>
+    <div class="acct"><small id="who"></small><button class="ab" type="button" id="pwBtn">Password</button><button class="ab" type="button" id="outBtn">Sign out</button></div>
+  </header>
+  <main id="view"><div class="load">Loading agronomist data…</div></main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const localISO = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0') };
+let TODAY = localISO(new Date());
+const DAY = 864e5, addDays = (s, n) => localISO(new Date(Date.parse(s + 'T12:00:00') + n * DAY));
+const fmtD = s => s ? new Date(String(s).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-IN', {day: 'numeric', month: 'short'}) : '–';
+const fmtT = s => s ? new Date(s).toLocaleString('en-IN', {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'}) : 'never';
+const ago = s => { if (!s) return 'never'; const m = Math.round((Date.now() - new Date(s)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago' };
+const rupee = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const chip = (c, t) => `<span class="chip ${c}">${esc(t)}</span>`;
+const initials = n => String(n || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+const DEAD = ['Cancelled', 'Returned'];
+function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 2600) }
+async function api(path, opt = {}) {
+  const r = await fetch(path, Object.assign({credentials: 'same-origin', cache: 'no-store', headers: {'Content-Type': 'application/json'}}, opt));
+  if (r.status === 401) { location.replace('/?next=/admin'); throw new Error('Signed out') }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 403) { location.replace('/desk'); throw new Error('Not admin') }
+  if (!r.ok) throw new Error(j.error || 'Server error');
+  return j;
+}
+
+/* ---------- state ---------- */
+let DATA = null, USERS = [], VIEW = 'overview', PER = '7', AG = '', Q = '', OUTF = '', EDIT = null, NEWU = false, MSG = null;
+const TABS = [['overview', 'Overview'], ['calls', 'Calls'], ['orders', 'Orders'], ['farmers', 'Farmers'], ['lists', 'Call lists'], ['callbacks', 'Callbacks'], ['team', 'Agronomists']];
+const inPer = d => { if (!d) return false; d = String(d).slice(0, 10); if (PER === 'all') return true; if (PER === 'today') return d === TODAY; return d > addDays(TODAY, -Number(PER)) && d <= TODAY };
+const perLabel = () => ({today: 'today', '7': 'last 7 days', '30': 'last 30 days', all: 'all time'})[PER];
+const AGS = () => (DATA ? DATA.agronomists : []);
+const agById = id => AGS().find(a => String(a.id) === String(id));
+const pick = () => AGS().filter(a => !AG || String(a.id) === AG);
+const rows = key => pick().flatMap(a => ((a.report && a.report[key]) || []).map(x => Object.assign({ag: a}, x)));
+const qMatch = (...xs) => !Q || xs.some(x => String(x || '').toLowerCase().includes(Q.toLowerCase()));
+const isCall = c => c.ch === 'Call';
+const connected = c => c.out !== 'Not reachable';
+
+function stats(a) {
+  const r = a.report || {}, calls = (r.calls || []).filter(c => isCall(c) && inPer(c.d)), con = calls.filter(connected);
+  const ords = (r.orders || []).filter(o => inPer(o.date) && !DEAD.includes(o.status));
+  const fs = r.farmers || [], q = r.queue || {};
+  return {calls: calls.length, con: con.length, contacts: (r.calls || []).filter(c => inPer(c.d)).length, orders: ords.length, value: ords.reduce((t, o) => t + (o.value || 0), 0),
+    pops: (r.pops || []).filter(p => inPer(p.on)).length, farmers: fs.length, popReady: fs.filter(f => f.pop).length,
+    lists: (r.uploads || []).filter(u => inPer(u.at)).length, pending: q.pending || 0, overdue: q.overdue || 0, due: q.callbacksDue || 0, needPop: q.needPop || 0,
+    callsToday: (r.calls || []).filter(c => isCall(c) && c.d === TODAY).length};
+}
+
+/* ---------- shared bits ---------- */
+function perSeg() { return `<div class="seg" role="group" aria-label="Period">${[['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['all', 'All']].map(([k, l]) => `<button type="button" data-per="${k}" aria-pressed="${PER === k}">${l}</button>`).join('')}</div>` }
+function agSel() { return `<select id="agf" aria-label="Agronomist"><option value="">All agronomists</option>${AGS().map(a => `<option value="${a.id}"${String(a.id) === AG ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` }
+function filters(extra = '', csv = '') { return `<div class="filters">${agSel()}<input type="search" id="q" placeholder="Search farmer, phone, product…" value="${esc(Q)}">${extra}<span class="sp"></span>${csv ? `<button class="btn ghost" type="button" data-csv="${csv}">Download CSV</button>` : ''}</div>` }
+function head(t, p) { return `<div class="head"><div><h1>${t}</h1><p>${p}</p></div>${perSeg()}</div>` }
+const who = (n, ph) => `<div class="who"><b>${esc(n || 'Farmer')}</b><span class="num">${esc(ph || '')}</span></div>`;
+const outChip = o => chip(o === 'Ordered' ? 'ok' : o === 'Not reachable' ? 'hot' : o === 'Callback' ? 'blue' : o === 'Undecided' ? 'warm' : o === 'Not interested' ? '' : 'violet', o || '–');
+
+/* ---------- overview ---------- */
+function vOverview() {
+  const S = AGS().map(a => ({a, s: stats(a)})), T = k => S.reduce((t, x) => t + x.s[k], 0);
+  const tc = T('calls'), tcon = T('con'), to = T('orders');
+  const days = [...Array(14)].map((_, i) => addDays(TODAY, i - 13)), all = AGS().flatMap(a => ((a.report && a.report.calls) || []).filter(isCall));
+  const per = days.map(d => { const L = all.filter(c => c.d === d); return {d, n: L.length, c: L.filter(connected).length} }), mx = Math.max(4, ...per.map(x => x.n));
+  const log = (DATA.logins || []).slice(0, 10);
+  return `${head('Team overview', `${AGS().filter(a => a.active).length} active agronomists · ${perLabel()} · refreshed ${new Date(DATA.now).toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}`)}
+  <div class="kpis" style="margin-top:14px">
+    <div class="kpi b"><span>Calls made</span><b class="num">${tc}</b><small>${tcon} connected${tc ? ' · ' + Math.round(100 * tcon / tc) + '%' : ''}</small></div>
+    <div class="kpi g"><span>Orders from calls</span><b class="num">${to}</b><small>${tcon ? Math.round(100 * to / tcon) + '% of connected calls' : '–'}</small></div>
+    <div class="kpi g"><span>Order value</span><b class="num">${rupee(T('value'))}</b><small>excl. cancelled / returned</small></div>
+    <div class="kpi v"><span>POPs filled on calls</span><b class="num">${T('pops')}</b><small>crop details completed</small></div>
+    <div class="kpi w"><span>In call queues now</span><b class="num">${T('pending')}</b><small>${T('needPop')} need crop details</small></div>
+    <div class="kpi r"><span>Callbacks overdue</span><b class="num">${T('overdue')}</b><small>${T('due')} due today or earlier</small></div>
+  </div>
+  <section class="card" style="margin-top:18px"><h2>Agronomists <small>${perLabel()}</small></h2>
+   ${AGS().length ? `<div class="tw"><table><thead><tr><th>Agronomist</th><th class="n">Calls</th><th class="n">Connected</th><th class="n">Orders</th><th class="n">Value</th><th class="n">POPs filled</th><th class="n">Farmers</th><th class="n">Queue now</th><th class="n">Overdue</th><th>Last saved</th><th></th></tr></thead><tbody>
+   ${S.map(({a, s}) => { const tgt = (a.report && a.report.today === TODAY && a.report.queue && a.report.queue.total) || 0; return `<tr><td><div class="who"><b>${esc(a.name)}</b><span>${esc(a.username)} · ${esc(a.hub || '')}${a.active ? '' : ' · ' + 'switched off'}</span></div></td>
+     <td class="n num"><b>${s.calls}</b>${PER === 'today' && tgt ? `<div class="meter" title="Today's queue: ${tgt} farmers"><i style="width:${Math.min(100, 100 * s.calls / tgt)}%"></i></div><span class="rm">of ${tgt}</span>` : ''}</td>
+     <td class="n num">${s.con}</td><td class="n num">${s.orders}</td><td class="n num">${rupee(s.value)}</td><td class="n num">${s.pops}</td>
+     <td class="n num">${s.farmers}<div class="rm">${s.farmers ? Math.round(100 * s.popReady / s.farmers) + '% POP ready' : ''}</div></td>
+     <td class="n num">${s.pending}</td><td class="n num">${s.overdue ? chip('hot', s.overdue) : '0'}</td>
+     <td><span title="${esc(fmtT(a.saved_at))}">${a.report ? ago(a.saved_at) : 'not opened yet'}</span><div class="rm">login ${ago(a.last_login_at)}</div></td>
+     <td class="n"><a class="btn ghost" href="/desk?as=${a.id}">Open desk</a></td></tr>` }).join('')}</tbody></table></div>` : `<p class="empty">No agronomists yet. <button class="btn" type="button" data-tab="team">Add agronomists</button></p>`}
+  </section>
+  <div class="grid2" style="margin-top:18px">
+   <section class="card"><h2>Calls per day <small>last 14 days, whole team</small></h2>
+    <div class="bars">${per.map(x => `<div title="${fmtD(x.d)}: ${x.n} calls, ${x.c} connected"><span class="num">${x.n || ''}</span><i style="height:${100 * (x.n - x.c) / mx}%"></i><i class="c" style="height:${100 * x.c / mx}%"></i></div>`).join('')}</div>
+    <div class="bx">${per.map((x, i) => `<span>${i % 2 ? '' : fmtD(x.d).split(' ')[0]}</span>`).join('')}</div>
+    <div class="lg"><span><i style="background:var(--green)"></i>Connected</span><span><i style="background:#9CC5AC"></i>Not reachable</span></div></section>
+   <section class="card"><h2>Recent sign-ins</h2>${log.length ? `<ul class="list">${log.map(l => `<li><span>${esc(l.name || 'Unknown')} ${l.action === 'login_failed' ? chip('hot', 'wrong password') : ''}</span><span class="rm">${fmtT(l.at)}</span></li>`).join('')}</ul>` : '<p class="empty">No sign-ins yet.</p>'}</section>
+  </div>`;
+}
+
+/* ---------- calls ---------- */
+function callRows() { return rows('calls').filter(c => inPer(c.d) && (!OUTF || c.out === OUTF) && qMatch(c.name, c.phone, c.note, c.topic, c.ag.name)).sort((a, b) => (b.d + (b.hr ?? 0)).localeCompare(a.d + (a.hr ?? 0)) || String(b.at).localeCompare(String(a.at))) }
+function vCalls() {
+  const L = callRows(), outs = [...new Set(rows('calls').map(c => c.out).filter(Boolean))].sort();
+  return `${head('Calls and contacts', 'Every call, visit and WhatsApp logged on the desks · ' + perLabel())}
+  <section class="card" style="margin-top:14px">${filters(`<select id="outf" aria-label="Outcome"><option value="">All outcomes</option>${outs.map(o => `<option${o === OUTF ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`, 'calls')}
+   <p class="rm" style="margin:0 0 6px">${L.length} entries · ${L.filter(isCall).length} calls · ${L.filter(c => isCall(c) && connected(c)).length} connected</p>
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Agronomist</th><th>Farmer</th><th>Channel</th><th>Topic</th><th>Outcome</th><th>Note</th></tr></thead><tbody>
+   ${L.slice(0, 600).map(c => `<tr><td class="num">${fmtD(c.d)}<div class="rm">${esc(c.at)}</div></td><td>${esc(c.ag.name)}</td><td>${who(c.name, c.phone)}</td><td>${esc(c.ch)}</td><td>${esc(c.topic)}</td><td>${outChip(c.out)}</td><td style="max-width:360px">${esc(c.note)}</td></tr>`).join('')}</tbody></table></div>${L.length > 600 ? '<p class="rm">Showing the latest 600. Download the CSV for all.</p>' : ''}` : '<p class="empty">No calls in this period.</p>'}</section>`;
+}
+
+/* ---------- orders ---------- */
+function orderRows() { return rows('orders').filter(o => inPer(o.date) && qMatch(o.name, o.phone, o.id, o.ag.name, (o.items || []).map(i => i[0]).join(' '))).sort((a, b) => String(b.date).localeCompare(String(a.date))) }
+function vOrders() {
+  const L = orderRows(), live = L.filter(o => !DEAD.includes(o.status));
+  return `${head('Orders from calls', 'Orders placed on the agronomist desks · ' + perLabel())}
+  <div class="kpis" style="margin-top:14px"><div class="kpi g"><span>Orders</span><b class="num">${live.length}</b><small>${L.length - live.length} cancelled / returned</small></div>
+   <div class="kpi g"><span>Value</span><b class="num">${rupee(live.reduce((t, o) => t + (o.value || 0), 0))}</b><small>after discounts</small></div>
+   <div class="kpi w"><span>Need discount approval</span><b class="num">${L.filter(o => o.approval).length}</b><small>discount above the limit</small></div>
+   <div class="kpi r"><span>Urgent</span><b class="num">${L.filter(o => o.urgent).length}</b><small>marked urgent on the call</small></div></div>
+  <section class="card" style="margin-top:18px">${filters('', 'orders')}
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Order</th><th>Agronomist</th><th>Farmer</th><th>Products</th><th class="n">Value</th><th>Status</th></tr></thead><tbody>
+   ${L.map(o => `<tr><td class="num">${fmtD(o.date)}</td><td class="num rm">${esc(o.id)}</td><td>${esc(o.ag.name)}</td><td>${who(o.name, o.phone)}</td>
+     <td>${(o.items || []).map(([p, q, v]) => `${esc(p)} <span class="rm">× ${q}</span>`).join('<br>')}</td><td class="n num"><b>${rupee(o.value)}</b>${o.disc ? `<div class="rm">${o.disc}% off</div>` : ''}</td>
+     <td>${chip(DEAD.includes(o.status) ? 'hot' : o.status === 'Delivered' ? 'ok' : 'blue', o.status)}${o.approval ? ' ' + chip('warm', 'Approval') : ''}${o.urgent ? ' ' + chip('hot', 'Urgent') : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No orders in this period.</p>'}</section>`;
+}
+
+/* ---------- farmers ---------- */
+function farmerRows() {
+  const L = rows('farmers'), byPh = {};
+  AGS().forEach(a => ((a.report && a.report.farmers) || []).forEach(f => { if (f.phone) (byPh[f.phone] = byPh[f.phone] || new Set()).add(a.name) }));
+  return L.filter(f => qMatch(f.name, f.phone, f.village, f.district, f.crop, f.variety, f.ag.name) && (!OUTF || (OUTF === 'ready' ? f.pop : !f.pop)))
+    .map(f => Object.assign(f, {others: f.phone && byPh[f.phone] ? [...byPh[f.phone]].filter(n => n !== f.ag.name) : []}));
+}
+function vFarmers() {
+  const L = farmerRows();
+  return `<div class="head"><div><h1>Farmers</h1><p>Every farmer on the agronomist desks, with crop, stage and POP status (all time)</p></div></div>
+  <section class="card" style="margin-top:14px">${filters(`<select id="outf" aria-label="POP status"><option value="">All farmers</option><option value="ready"${OUTF === 'ready' ? ' selected' : ''}>POP ready</option><option value="need"${OUTF === 'need' ? ' selected' : ''}>Crop details missing</option></select>`, 'farmers')}
+   <p class="rm" style="margin:0 0 6px">${L.length} farmers · ${L.filter(f => f.pop).length} with POP ready</p>
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Farmer</th><th>Agronomist</th><th>Place</th><th>Crop</th><th>Stage (POP)</th><th class="n">Acres</th><th>From list</th></tr></thead><tbody>
+   ${L.slice(0, 800).map(f => `<tr><td>${who(f.name, f.phone)}</td><td>${esc(f.ag.name)}${f.others.length ? `<div>${chip('warm', 'Also with ' + f.others.join(', '))}</div>` : ''}</td><td>${esc(f.village)}<div class="rm">${esc(f.district)} ${esc(f.pin || '')}</div></td>
+     <td>${esc(f.crop)}<div class="rm">${esc(f.variety)}${f.sow ? ' · sown ' + fmtD(f.sow) : ''}</div></td><td>${f.pop ? esc(f.stage) : chip('violet', f.missing && f.missing.length ? 'Missing: ' + f.missing.join(', ') : f.stage)}</td>
+     <td class="n num">${f.acres || '–'}</td><td class="rm">${esc(f.list || '')}</td></tr>`).join('')}</tbody></table></div>${L.length > 800 ? '<p class="rm">Showing 800. Download the CSV for all.</p>' : ''}` : '<p class="empty">No farmers yet. They appear once agronomists upload call lists.</p>'}</section>`;
+}
+
+/* ---------- call lists ---------- */
+function vLists() {
+  const L = rows('uploads').filter(u => inPer(u.at) && qMatch(u.name, u.ag.name)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  return `${head('Call lists uploaded', 'Excel / CSV lists each agronomist uploaded · ' + perLabel())}
+  <section class="card" style="margin-top:14px">${filters('', 'lists')}
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Uploaded</th><th>Agronomist</th><th>List</th><th class="n">Farmers</th><th class="n">Already theirs</th><th class="n">New</th><th class="n">Skipped</th><th></th></tr></thead><tbody>
+   ${L.map(u => `<tr><td>${fmtT(u.at)}</td><td>${esc(u.ag.name)}</td><td><b>${esc(u.name)}</b></td><td class="n num">${u.rows}</td><td class="n num">${(u.counts || {}).mine || 0}</td><td class="n num">${((u.counts || {}).new || 0) + ((u.counts || {}).lens || 0)}</td><td class="n num">${(u.counts || {}).skip || 0}</td><td>${u.removed ? chip('', 'Removed') : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No call lists uploaded in this period.</p>'}</section>`;
+}
+
+/* ---------- callbacks ---------- */
+function vCallbacks() {
+  const L = rows('followups').filter(x => qMatch(x.name, x.phone, x.why, x.ag.name)).sort((a, b) => String(a.due).localeCompare(String(b.due)));
+  const U = rows('undecided').filter(x => qMatch(x.name, x.note, x.ag.name)).sort((a, b) => String(a.back).localeCompare(String(b.back)));
+  return `<div class="head"><div><h1>Callbacks and undecided farmers</h1><p>Open follow-ups across the team, as of each desk's last save</p></div></div>
+  <section class="card" style="margin-top:14px">${filters('', 'callbacks')}
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Due</th><th>Agronomist</th><th>Farmer</th><th>Why</th></tr></thead><tbody>
+   ${L.map(x => `<tr><td>${x.due < TODAY ? chip('hot', fmtD(x.due) + ' · overdue') : x.due === TODAY ? chip('warm', 'Today ' + (x.time || '')) : fmtD(x.due) + ' ' + esc(x.time)}</td><td>${esc(x.ag.name)}</td><td>${who(x.name, x.phone)}</td><td>${esc(x.why)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No open callbacks.</p>'}</section>
+  <section class="card" style="margin-top:18px"><h2>Undecided <small>back in the queue on the date shown</small></h2>
+   ${U.length ? `<div class="tw"><table><thead><tr><th>Back in queue</th><th>Agronomist</th><th>Farmer</th><th>Note</th><th>Undecided on</th></tr></thead><tbody>${U.map(u => `<tr><td>${fmtD(u.back)}</td><td>${esc(u.ag.name)}</td><td><b>${esc(u.name)}</b></td><td>${esc(u.note)}</td><td>${fmtD(u.at)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">None.</p>'}</section>`;
+}
+
+/* ---------- agronomists (logins) ---------- */
+function userForm(u) {
+  const t = (u && u.target) || {};
+  return `<form class="form" data-uform="${u ? u.id : 'new'}">
+    ${u ? '' : `<label class="field">Username<input name="username" required autocapitalize="none" spellcheck="false" placeholder="e.g. ramesh"></label>`}
+    <label class="field">Full name<input name="name" required value="${esc(u ? u.name : '')}"></label>
+    <label class="field">Hub<input name="hub" value="${esc(u ? u.hub : 'Lucknow hub')}"></label>
+    <label class="field">Phone<input name="phone" value="${esc(u ? u.phone : '')}" inputmode="tel"></label>
+    <label class="field">Orders / month target<input name="t_orders" type="number" min="0" value="${esc(t.orders || '')}"></label>
+    <label class="field">Revenue / month target (₹)<input name="t_revenue" type="number" min="0" value="${esc(t.revenue || '')}"></label>
+    <label class="field">${u ? 'New password (leave empty to keep)' : 'Password (8+ characters)'}<input name="password" type="text" autocomplete="new-password" ${u ? '' : 'required minlength="8"'} placeholder="${u ? '' : 'they can change it later'}"></label>
+    <div class="acts" style="grid-column:1/-1"><button class="btn" type="submit">${u ? 'Save changes' : 'Create login'}</button><button class="btn ghost" type="button" data-cancel>Cancel</button></div>
+  </form>`;
+}
+function vTeam() {
+  const A = USERS.filter(u => u.role === 'agronomist'), ad = USERS.filter(u => u.role === 'admin');
+  return `<div class="head"><div><h1>Agronomists and logins</h1><p>${A.filter(u => u.active).length} active agronomist logins · each sees only their own desk</p></div>
+   <button class="btn" type="button" data-newu>Add agronomist</button></div>
+  ${MSG ? `<p class="note ${MSG[0]}" style="margin-top:12px">${MSG[1]}</p>` : ''}
+  ${NEWU ? `<section class="card" style="margin-top:14px"><h2>New agronomist login</h2><p class="rm" style="margin:2px 0 10px">Share the username and password with the agronomist. They sign in at this same web address.</p>${userForm(null)}</section>` : ''}
+  <div class="ucards" style="margin-top:14px">${A.map(u => { const a = agById(u.id), s = a ? stats(a) : null; return `<section class="card uc">
+    <div class="uch"><div style="display:flex;gap:12px;align-items:center"><span class="av">${initials(u.name)}</span><div><h3 style="font-size:17px">${esc(u.name)}</h3><div class="rm">${esc(u.username)} · ${esc(u.hub || '')}${u.phone ? ' · ' + esc(u.phone) : ''}</div></div></div>
+     ${u.active ? chip('ok', 'Active') : chip('hot', 'Switched off')}</div>
+    <div class="rm">Created ${fmtD(u.created_at)} · last sign-in ${ago(u.last_login_at)}${s ? ` · ${s.farmers} farmers · ${s.callsToday} calls today` : ''}</div>
+    ${EDIT === u.id ? userForm(u) : `<div class="acts"><button class="btn ghost" type="button" data-edit="${u.id}">Edit / reset password</button><a class="btn ghost" href="/desk?as=${u.id}">Open desk</a>
+      <button class="btn ghost" type="button" data-active="${u.id}" data-on="${u.active ? 0 : 1}">${u.active ? 'Switch off login' : 'Switch on login'}</button></div>`}
+    <details class="danger"><summary>Clear this agronomist's desk</summary><p class="rm">Removes their farmers, call lists, calls and orders from the desk so they start empty. A full copy is kept in the database audit log. Type <b>${esc(u.username)}</b> to confirm.</p>
+     <div class="acts"><input class="field" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px" data-confirm="${u.id}" placeholder="${esc(u.username)}" aria-label="Type the username to confirm"><button class="btn warn" type="button" data-reset="${u.id}" data-un="${esc(u.username)}">Clear desk</button></div></details>
+   </section>` }).join('') || '<p class="empty">No agronomists yet. Add your 5 agronomists with the button above.</p>'}</div>
+  <section class="card" style="margin-top:18px"><h2>Admin logins</h2><ul class="list">${ad.map(u => `<li><span><b>${esc(u.name)}</b> <span class="rm">${esc(u.username)}</span></span><span class="rm">last sign-in ${ago(u.last_login_at)}</span></li>`).join('')}</ul></section>`;
+}
+
+/* ---------- CSV ---------- */
+function csv(kind) {
+  const q = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v };
+  let H, R;
+  if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.note]) }
+  if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Discount %', 'Status', 'Needs approval', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.disc, o.status, o.approval ? 'yes' : '', o.urgent ? 'yes' : '']) }
+  if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list]) }
+  if (kind === 'lists') { H = ['Uploaded', 'Agronomist', 'List', 'Farmers', 'Already theirs', 'New', 'Skipped']; R = rows('uploads').filter(u => inPer(u.at)).map(u => [u.at, u.ag.name, u.name, u.rows, (u.counts || {}).mine || 0, ((u.counts || {}).new || 0) + ((u.counts || {}).lens || 0), (u.counts || {}).skip || 0]) }
+  if (kind === 'callbacks') { H = ['Due', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Why']; R = rows('followups').map(x => [x.due, x.time, x.ag.name, x.name, x.phone, x.why]) }
+  const blob = new Blob(['﻿' + [H, ...R].map(r => r.map(q).join(',')).join('\n')], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `gramik-${kind}-${TODAY}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove() }, 500);
+}
+
+/* ---------- render + events ---------- */
+function render() {
+  if (!DATA) return;
+  $('today').textContent = new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'});
+  $('who').textContent = DATA.me.name;
+  const badge = {team: USERS.filter(u => u.role === 'agronomist' && u.active).length, callbacks: AGS().reduce((t, a) => t + ((a.report && a.report.queue && a.report.queue.overdue) || 0), 0)};
+  $('tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab" type="button" data-tab="${k}"${VIEW === k ? ' aria-current="page"' : ''}>${l}${badge[k] ? `<b>${badge[k]}</b>` : ''}</button>`).join('');
+  const y = window.scrollY, foc = document.activeElement && document.activeElement.id, pos = foc === 'q' ? document.activeElement.selectionStart : null;
+  $('view').innerHTML = ({overview: vOverview, calls: vCalls, orders: vOrders, farmers: vFarmers, lists: vLists, callbacks: vCallbacks, team: vTeam})[VIEW]();
+  if (foc === 'q' && $('q')) { $('q').focus(); try { $('q').setSelectionRange(pos, pos) } catch (e) {} window.scrollTo(0, y) }
+}
+async function load(quiet) {
+  try {
+    const [o, u] = await Promise.all([api('/api/admin/overview'), api('/api/admin/users')]);
+    DATA = o; USERS = u.users; TODAY = localISO(new Date()); render();
+  } catch (e) { if (!quiet) $('view').innerHTML = `<section class="card"><h2>Could not load</h2><p>${esc(e.message)}</p><button class="btn" type="button" onclick="location.reload()">Try again</button></section>` }
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button,[data-tab]'); if (!t) return;
+  if (t.dataset.tab) { VIEW = t.dataset.tab; Q = ''; OUTF = ''; MSG = null; render(); window.scrollTo(0, 0); return }
+  if (t.dataset.per) { PER = t.dataset.per; return render() }
+  if (t.dataset.csv) return csv(t.dataset.csv);
+  if (t.hasAttribute('data-newu')) { NEWU = true; EDIT = null; MSG = null; return render() }
+  if (t.hasAttribute('data-cancel')) { NEWU = false; EDIT = null; return render() }
+  if (t.dataset.edit) { EDIT = Number(t.dataset.edit); NEWU = false; MSG = null; return render() }
+  if (t.dataset.active) {
+    try { await api('/api/admin/users', {method: 'PATCH', body: JSON.stringify({id: Number(t.dataset.active), active: t.dataset.on === '1'})}); MSG = ['ok', t.dataset.on === '1' ? 'Login switched on.' : 'Login switched off. They are signed out everywhere.']; await load() } catch (x) { MSG = ['hot', esc(x.message)]; render() }
+    return;
+  }
+  if (t.dataset.reset) {
+    const inp = document.querySelector(`[data-confirm="${t.dataset.reset}"]`);
+    if (!inp || inp.value.trim().toLowerCase() !== t.dataset.un) { toast('Type the username to confirm'); return }
+    try { await api('/api/admin/users', {method: 'PATCH', body: JSON.stringify({id: Number(t.dataset.reset), action: 'resetDesk'})}); MSG = ['ok', 'Desk cleared. The agronomist will see an empty desk next time it opens.']; await load() } catch (x) { MSG = ['hot', esc(x.message)]; render() }
+  }
+});
+document.addEventListener('submit', async e => {
+  const f = e.target.closest('[data-uform]'); if (!f) return; e.preventDefault();
+  const v = n => f.elements[n] ? f.elements[n].value.trim() : undefined, id = f.dataset.uform;
+  const body = {name: v('name'), hub: v('hub'), phone: v('phone'), target: {orders: v('t_orders'), revenue: v('t_revenue')}};
+  if (v('password')) body.password = v('password');
+  try {
+    if (id === 'new') { body.username = v('username'); await api('/api/admin/users', {method: 'POST', body: JSON.stringify(body)}); MSG = ['ok', `Login created for <b>${esc(body.name)}</b> → username <b>${esc(body.username.toLowerCase())}</b>, password <b>${esc(body.password)}</b>. Share it with them now; it is not shown again.`]; NEWU = false }
+    else { body.id = Number(id); await api('/api/admin/users', {method: 'PATCH', body: JSON.stringify(body)}); MSG = ['ok', 'Saved.' + (body.password ? ` New password: <b>${esc(body.password)}</b> (they are signed out and must use it).` : '')]; EDIT = null }
+    await load();
+  } catch (x) { MSG = ['hot', esc(x.message)]; render() }
+});
+document.addEventListener('input', e => { if (e.target.id === 'q') { Q = e.target.value; render() } });
+document.addEventListener('change', e => { if (e.target.id === 'agf') { AG = e.target.value; render() } if (e.target.id === 'outf') { OUTF = e.target.value; render() } });
+$('outBtn').onclick = async () => { await fetch('/api/logout', {method: 'POST', credentials: 'same-origin'}).catch(() => {}); location.replace('/') };
+$('pwBtn').onclick = async () => {
+  const w = document.createElement('div'); w.style.cssText = 'position:fixed;inset:0;z-index:80;background:rgba(20,35,28,.45);display:grid;place-items:center;padding:16px';
+  w.innerHTML = '<form class="card" style="width:min(380px,100%);display:flex;flex-direction:column;gap:10px"><h2>Change admin password</h2><label class="field">Current password<input type="password" name="c" required autocomplete="current-password"></label><label class="field">New password (8+ characters)<input type="password" name="n" minlength="8" required autocomplete="new-password"></label><p class="note hot" hidden></p><div class="acts"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" data-x>Cancel</button></div></form>';
+  document.body.appendChild(w); w.querySelector('input').focus(); w.querySelector('[data-x]').onclick = () => w.remove();
+  w.querySelector('form').onsubmit = async ev => { ev.preventDefault(); ev.stopPropagation(); const fm = ev.target, er = fm.querySelector('.note');
+    try { await api('/api/me', {method: 'POST', body: JSON.stringify({current: fm.c.value, next: fm.n.value})}); w.remove(); toast('Password changed') } catch (x) { er.textContent = x.message; er.hidden = false } };
+};
+load();
+setInterval(() => { if (!document.hidden && !EDIT && !NEWU && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) load(true) }, 60000);
+</script>
+</body>
+</html>
