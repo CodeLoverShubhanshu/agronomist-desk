@@ -222,7 +222,7 @@ function vFarmers() {
    <p class="rm" style="margin:0 0 6px">${L.length} farmers · ${L.filter(f => f.pop).length} with POP ready</p>
    ${L.length ? `<div class="tw"><table><thead><tr><th>Farmer</th><th>Agronomist</th><th>Place</th><th>Crop</th><th>Stage (POP)</th><th class="n">Acres</th><th>From list</th></tr></thead><tbody>
    ${L.slice(0, 800).map(f => `<tr><td>${who(f.name, f.phone)}</td><td>${esc(f.ag.name)}${f.others.length ? `<div>${chip('warm', 'Also with ' + f.others.join(', '))}</div>` : ''}</td><td>${esc(f.village)}<div class="rm">${esc(f.district)} ${esc(f.pin || '')}</div></td>
-     <td>${esc(f.crop)}<div class="rm">${esc(f.variety)}${f.sow ? ' · sown ' + fmtD(f.sow) : ''}</div></td><td>${f.pop ? esc(f.stage) : chip('violet', f.missing && f.missing.length ? 'Missing: ' + f.missing.join(', ') : f.stage)}</td>
+     <td>${esc(f.crop)}<div class="rm">${esc(f.variety)}${f.sow ? ' · sown ' + fmtD(f.sow) : ''}</div>${f.crops && f.crops.length > 1 ? `<div class="rm">${f.crops.length} crops: ${esc(f.crops.join(', '))}</div>` : ''}</td><td>${f.pop ? esc(f.stage) : chip('violet', f.missing && f.missing.length ? 'Missing: ' + f.missing.join(', ') : f.stage)}</td>
      <td class="n num">${f.acres || '–'}</td><td class="rm">${esc(f.list || '')}</td></tr>`).join('')}</tbody></table></div>${L.length > 800 ? '<p class="rm">Showing 800. Download the CSV for all.</p>' : ''}` : '<p class="empty">No farmers yet. They appear once agronomists upload call lists.</p>'}</section>`;
 }
 
@@ -285,7 +285,7 @@ function csv(kind) {
   let H, R;
   if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.note]) }
   if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Discount %', 'Status', 'Needs approval', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.disc, o.status, o.approval ? 'yes' : '', o.urgent ? 'yes' : '']) }
-  if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list]) }
+  if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
   if (kind === 'lists') { H = ['Uploaded', 'Agronomist', 'List', 'Farmers', 'Already theirs', 'New', 'Skipped']; R = rows('uploads').filter(u => inPer(u.at)).map(u => [u.at, u.ag.name, u.name, u.rows, (u.counts || {}).mine || 0, ((u.counts || {}).new || 0) + ((u.counts || {}).lens || 0), (u.counts || {}).skip || 0]) }
   if (kind === 'callbacks') { H = ['Due', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Why']; R = rows('followups').map(x => [x.due, x.time, x.ag.name, x.name, x.phone, x.why]) }
   const blob = new Blob(['﻿' + [H, ...R].map(r => r.map(q).join(',')).join('\n')], {type: 'text/csv;charset=utf-8'});
