@@ -2331,7 +2331,7 @@ const UCOLS = {name: ['name', 'farmer', 'farmername', 'customer', 'customername'
 const UHEAD = ['Name', 'Phone', 'Lens ID', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Reason', 'Priority'];
 const phone10 = p => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' };
 function parseCSV(text) {
-  text = text.replace(/^﻿/, ''); const first = text.split(/\r?\n/)[0] || '';
+  text = text.replace(/^\uFEFF/, ''); const first = text.split(/\r?\n/).slice(0, 5).join('\n');
   const sep = (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length ? '\t' : (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',';
   const rows = []; let row = [], cell = '', q = false;
   for (let i = 0; i < text.length; i++) { const ch = text[i];
@@ -2367,13 +2367,15 @@ function lensLookup(r) {
 }
 function readRows(table, fileName) {
   if (!table.length) return {err: 'The file is empty.'};
-  const head = table[0].map(h => norm(String(h)));
-  const col = {}; Object.entries(UCOLS).forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0) col[k] = i });
-  if (col.phone == null && col.id == null) return {err: 'No Phone or Lens ID column found. The first row must be the column names, e.g. ' + UHEAD.slice(0, 3).join(', ') + '.'};
+  /* the header row may sit below a title line, so look for it in the first rows */
+  const mapCols = row => { const head = row.map(h => norm(String(h ?? ''))), c = {}; Object.entries(UCOLS).forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0) c[k] = i }); return c };
+  let hr = -1, col = {};
+  for (let j = 0; j < Math.min(table.length, 15); j++) { const c = mapCols(table[j]); if (c.phone != null || c.id != null) { hr = j; col = c; break } }
+  if (hr < 0) return {err: 'No Phone or Lens ID column found. One row near the top must hold the column names, e.g. ' + UHEAD.slice(0, 3).join(', ') + '.'};
   const seenPh = new Set(), out = [];
-  table.slice(1).forEach((row, i) => {
+  table.slice(hr + 1).forEach((row, i) => {
     const g = k => col[k] != null ? String(row[col[k]] ?? '').trim() : '';
-    const r = {line: i + 2, name: g('name'), phone: g('phone'), id: g('id'), village: g('village'), district: g('district'), pin: g('pin').replace(/\D/g, ''), crop: g('crop'), variety: g('variety'),
+    const r = {line: i + hr + 2, name: g('name'), phone: g('phone'), id: g('id'), village: g('village'), district: g('district'), pin: g('pin').replace(/\D/g, ''), crop: g('crop'), variety: g('variety'),
       sow: parseDateCell(col.sow != null ? row[col.sow] : ''), acres: parseFloat(g('acres')) || 0, reason: g('reason'), pri: /high|urgent|1/i.test(g('pri')) ? 'high' : /low|3/i.test(g('pri')) ? 'low' : g('pri') ? 'med' : ''};
     if (!r.name && !r.phone && !r.id) return;
     const ph = phone10(r.phone);
