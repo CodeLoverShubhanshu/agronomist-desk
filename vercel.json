@@ -2,15 +2,56 @@
   "outputDirectory": "public",
   "cleanUrls": true,
   "trailingSlash": false,
-  "functions": { "api/**/*.js": { "maxDuration": 15 } },
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 15,
+      "includeFiles": "lib/pending-lists.enc"
+    }
+  },
   "headers": [
-    { "source": "/(.*)", "headers": [
-      { "key": "X-Content-Type-Options", "value": "nosniff" },
-      { "key": "Referrer-Policy", "value": "same-origin" },
-      { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
-    ] },
-    { "source": "/", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] },
-    { "source": "/desk", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] },
-    { "source": "/admin", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] }
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/desk",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/admin",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }
