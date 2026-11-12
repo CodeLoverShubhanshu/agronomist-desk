@@ -170,7 +170,7 @@ function vOverview() {
      <td class="n num">${s.farmers}<div class="rm">${s.farmers ? Math.round(100 * s.popReady / s.farmers) + '% POP ready' : ''}</div></td>
      <td class="n num">${s.pending}</td><td class="n num">${s.overdue ? chip('hot', s.overdue) : '0'}</td>
      <td><span title="${esc(fmtT(a.saved_at))}">${a.report ? ago(a.saved_at) : 'not opened yet'}</span><div class="rm">login ${ago(a.last_login_at)}</div></td>
-     <td class="n"><a class="btn ghost" href="/desk?as=${a.id}">Open desk</a></td></tr>` }).join('')}</tbody></table></div>` : `<p class="empty">No agronomists yet. <button class="btn" type="button" data-tab="team">Add agronomists</button></p>`}
+     <td class="n"><div class="acts" style="justify-content:flex-end;flex-wrap:nowrap"><a class="btn ghost" href="/desk?as=${a.id}&amp;upload=1">Upload list</a><a class="btn ghost" href="/desk?as=${a.id}">Open desk</a></div></td></tr>` }).join('')}</tbody></table></div>` : `<p class="empty">No agronomists yet. <button class="btn" type="button" data-tab="team">Add agronomists</button></p>`}
   </section>
   <div class="grid2" style="margin-top:18px">
    <section class="card"><h2>Calls per day <small>last 14 days, whole team</small></h2>
@@ -271,7 +271,7 @@ function vTeam() {
     <div class="uch"><div style="display:flex;gap:12px;align-items:center"><span class="av">${initials(u.name)}</span><div><h3 style="font-size:17px">${esc(u.name)}</h3><div class="rm">${esc(u.username)} · ${esc(u.hub || '')}${u.phone ? ' · ' + esc(u.phone) : ''}</div></div></div>
      ${u.active ? chip('ok', 'Active') : chip('hot', 'Switched off')}</div>
     <div class="rm">Created ${fmtD(u.created_at)} · last sign-in ${ago(u.last_login_at)}${s ? ` · ${s.farmers} farmers · ${s.callsToday} calls today` : ''}</div>
-    ${EDIT === u.id ? userForm(u) : `<div class="acts"><button class="btn ghost" type="button" data-edit="${u.id}">Edit / reset password</button><a class="btn ghost" href="/desk?as=${u.id}">Open desk</a>
+    ${EDIT === u.id ? userForm(u) : `<div class="acts"><button class="btn ghost" type="button" data-edit="${u.id}">Edit / reset password</button><a class="btn ghost" href="/desk?as=${u.id}">Open desk</a><a class="btn ghost" href="/desk?as=${u.id}&amp;upload=1">Upload call list</a>
       <button class="btn ghost" type="button" data-active="${u.id}" data-on="${u.active ? 0 : 1}">${u.active ? 'Switch off login' : 'Switch on login'}</button></div>`}
     <details class="danger"><summary>Clear this agronomist's desk</summary><p class="rm">Removes their farmers, call lists, calls and orders from the desk so they start empty. A full copy is kept in the database audit log. Type <b>${esc(u.username)}</b> to confirm.</p>
      <div class="acts"><input class="field" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px" data-confirm="${u.id}" placeholder="${esc(u.username)}" aria-label="Type the username to confirm"><button class="btn warn" type="button" data-reset="${u.id}" data-un="${esc(u.username)}">Clear desk</button></div></details>

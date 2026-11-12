@@ -1033,6 +1033,7 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
       if (r.status === 413) throw new Error('too big');
       if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
       B.version = j.version; retryMs = 3000; lastOk = new Date(); stopped = false;
+      if (j.adminLists) { var nb = bar('', '<b>Your admin added a new call list to your desk.</b> <span class="sp"></span><button type="button" id="gdNewList">Load it</button>'); $('gdNewList').onclick = function () { flush().then(function () { location.reload() }) } }
       if (!dirty) { dropBackup(); status('ok', 'Saved ' + hhmm(lastOk)) } else status('pending', 'Saving…');
       var gb = $('gdbar'); if (gb && /gd-off|gd-conf/.test(gb.innerHTML)) gb.hidden = true;
     } catch (e) {
@@ -1047,11 +1048,18 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
     $('gdMine').onclick = function () { el.hidden = true; stopped = false; dirty = true; flush(true) };
   }
   B.save = function () {
-    if (B.readOnly) return;
+    if (B.readOnly) { B.roTouched = true; return }
     dirty = true; backup(); if (!stopped) status('pending', 'Saving…');
     clearTimeout(timer); timer = setTimeout(flush, 800);
   };
   B.flush = flush;
+  /* admin view: a call list uploaded here is added to this agronomist's desk (only the list; nothing else is saved) */
+  B.adminUpload = async function (entry) {
+    var r = await fetch('/api/admin/upload', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({user: B.owner.id, upload: entry})}).catch(function () { return null });
+    var j = r ? await r.json().catch(function () { return {} }) : {error: 'Not connected. Check the internet and try again.'};
+    if (!r || !r.ok) throw new Error(j.error || 'The list was not saved.');
+    B.version = j.version; B.updated = j.updated_at; return j;
+  };
   window.addEventListener('pagehide', function () { if (dirty) { backup(); flush() } });
   document.addEventListener('visibilitychange', function () { if (document.hidden && dirty) flush() });
   window.addEventListener('beforeunload', function (e) { if ((dirty || inflight) && !B.readOnly) { e.preventDefault(); e.returnValue = '' } });
@@ -1059,11 +1067,12 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 
   function account() {
     var o = B.owner, v = B.viewer;
+    B.adminView = !!(B.readOnly && v && v.role === 'admin');
     $('acct').innerHTML = B.readOnly
       ? '<span class="sync ro" id="syncst">Read-only</span><a class="ab" href="/admin">Back to admin</a>'
       : '<span class="sync ok" id="syncst">Saved</span><button class="ab" type="button" id="gdPw">Password</button><button class="ab" type="button" id="gdOut">Sign out</button>';
     if (B.readOnly) {
-      bar('ro', '<b>Viewing ' + escH(o.name) + '’s desk</b> (read-only, as admin ' + escH(v.name) + '). Last saved ' + (B.updated ? new Date(B.updated).toLocaleString('en-IN', {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'}) : 'never') + '. Anything you click here is not saved. <span class="sp"></span><a href="/admin">Back to admin</a>');
+      bar('ro', '<b>Viewing ' + escH(o.name) + '’s desk</b> (read-only, as admin ' + escH(v.name) + '). Last saved ' + (B.updated ? new Date(B.updated).toLocaleString('en-IN', {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'}) : 'never') + '. Anything you click here is not saved, except <b>Upload list</b>: a call list you upload here is added to ' + escH(o.name) + '’s call queue. <span class="sp"></span><a href="/admin">Back to admin</a>');
       return;
     }
     $('gdOut').onclick = async function () {
@@ -1109,6 +1118,7 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
   function run() {
     var code = $('deskMain').textContent, s = document.createElement('script');
     s.textContent = code; document.body.appendChild(s);
+    if (B.adminView && qs.get('upload') === '1') setTimeout(function () { var b = document.querySelector('[data-act="upopen"]'); if (b) b.click() }, 300);
     if (B.restored) { status('pending', 'Saving…'); setTimeout(function () { if (typeof toast === 'function') toast('Changes kept on this device were restored'); flush() }, 300) }
   }
 
@@ -2424,7 +2434,7 @@ function renderUpload() {
   if (UPL.step === 'pick') {
     body = `<div class="uph"><h3>Upload a call list</h3><button class="btn ghost sm" data-act="upclose">Close</button></div>
      <p class="sub" style="margin:0">Upload the list of farmers to call. Each farmer is matched to your farmers or looked up in Lens, and their crop, stage and POP details are fetched before they join today's call queue.</p>
-     <label class="drop" for="upfile"><span class="dropi">${icon2('up')}</span><b>Choose an Excel or CSV file</b><span class="rm">.xlsx or .csv · first row = column names</span><input type="file" id="upfile" accept=".xlsx,.xls,.csv,text/csv"></label>
+     <label class="drop" for="upfile"><span class="dropi">${icon2('up')}</span><b>Choose an Excel or CSV file</b><span class="rm">.xlsx or .csv · a row of column names at the top</span><input type="file" id="upfile" accept=".xlsx,.xls,.csv,text/csv"></label>
      ${UPL.busy ? '<p class="note">Reading the file…</p>' : ''}${UPL.err ? `<p class="note hot">${esc(UPL.err)}</p>` : ''}
      <div class="upcols"><span class="lbl2">Columns it understands</span><div class="chips">${UHEAD.map((h, i) => chip(i < 2 ? 'green' : 'mute', h + (i < 2 ? ' (needed)' : ''))).join('')}</div>
       <p class="rm" style="margin:6px 0 0">Phone or Lens ID is enough: crop, variety and sowing date come from Lens when the farmer is there. Hindi names like Fasal, Kism, Gaon also work.</p></div>
@@ -2440,11 +2450,15 @@ function renderUpload() {
        <td>${esc(r.reason || '')}${r.pri === 'high' ? ' ' + chip('hot', 'High') : ''}</td>
        <td>${chip(UTYPE[r.type][0], r.type === 'skip' ? r.why : UTYPE[r.type][1])}</td></tr>` }).join('')}</tbody></table></div>
      <label class="ck" style="margin-top:4px"><input type="checkbox" id="uphigh"${UPL.high ? ' checked' : ''}> Call this list first (mark every farmer high priority)</label>
-     <div class="acts"><button class="btn" data-act="upadd"${ok.length ? '' : ' disabled'}>Add ${ok.length} farmer${ok.length === 1 ? '' : 's'} to call queue</button><button class="btn ghost" data-act="upback">Choose another file</button></div>`;
+     ${window.__BOOT.adminView ? `<p class="note">As admin: these farmers are added to <b>${esc(window.__BOOT.owner.name)}</b>’s call queue.</p>` : ''}${UPL.err2 ? `<p class="note hot">${esc(UPL.err2)}</p>` : ''}
+     <div class="acts"><button class="btn" data-act="upadd"${ok.length && !UPL.saving ? '' : ' disabled'}>${UPL.saving ? 'Saving…' : `Add ${ok.length} farmer${ok.length === 1 ? '' : 's'} to ${window.__BOOT.adminView ? esc(window.__BOOT.owner.name.split(' ')[0]) + '’s' : ''} call queue`}</button><button class="btn ghost" data-act="upback">Choose another file</button></div>`;
   }
   el.innerHTML = `<div class="upin">${body}</div>`; el.hidden = false; $('scrim').hidden = false;
 }
-function addUpload() {
+async function addUpload() {
+  const B = window.__BOOT;
+  if (B.adminView && B.roTouched) { UPL.err2 = 'Something was changed in this read-only view, so the list was not added. Reload the page and upload the list again.'; return renderUpload() }
+  if (UPL.saving) return;
   const R = UPL.rows.filter(r => r.type !== 'skip'), bid = 'U' + Date.now().toString(36), farmers = [], rows = [];
   R.forEach((r, i) => {
     let fid;
@@ -2454,7 +2468,17 @@ function addUpload() {
       farmers.push(rec); addFarmer(rec); fid = rec.id }
     rows.push({fid, reason: r.reason, pri: UPL.high ? 'high' : (r.pri || 'med'), type: r.type});
   });
-  S.uploads.push({id: bid, name: UPL.fileName, at: new Date().toISOString(), rows, farmers, counts: {mine: R.filter(r => r.type === 'mine').length, lens: R.filter(r => r.type === 'lens').length, new: R.filter(r => r.type === 'new').length, skip: UPL.rows.length - R.length}});
+  const entry = {id: bid, name: UPL.fileName, at: new Date().toISOString(), rows, farmers, counts: {mine: R.filter(r => r.type === 'mine').length, lens: R.filter(r => r.type === 'lens').length, new: R.filter(r => r.type === 'new').length, skip: UPL.rows.length - R.length}};
+  if (B.adminView) {
+    if (!rows.length) { UPL.err2 = 'No farmers to add.'; return renderUpload() }
+    UPL.saving = true; renderUpload();
+    try { const j = await B.adminUpload(entry); entry.by = {name: (B.viewer || {}).name, role: 'admin'}; S.uploads.push(entry); UPL = null; renderUpload(); QTAB = 'list'; QK = null; QSEL = rows[0] ? rows[0].fid : QSEL;
+      toast(j.added + ' farmers added to ' + B.owner.name + '’s call queue'); go('today') }
+    catch (e) { R.forEach((r, i) => { const id = r.type === 'mine' ? null : r.type === 'lens' ? r.rec.id : bid + '-' + (i + 1); if (id && FM[id]) { delete FM[id]; const k = F.findIndex(f => f.id === id); if (k >= 0) F.splice(k, 1); const q = SRC.findIndex(f => f.id === id); if (q >= 0) SRC.splice(q, 1) } });
+      if (UPL) { UPL.saving = false; UPL.err2 = e.message; renderUpload() } }
+    return;
+  }
+  S.uploads.push(entry);
   save(); UPL = null; renderUpload(); QTAB = 'list'; QK = null; QSEL = rows[0] ? rows[0].fid : QSEL;
   toast(rows.length + ' farmers added to the call queue'); go('today');
 }

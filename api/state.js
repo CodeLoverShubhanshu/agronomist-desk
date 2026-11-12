@@ -26,8 +26,18 @@ module.exports = route(async (req, res) => {
     const st = JSON.stringify(b.state), rp = b.report && typeof b.report === 'object' ? JSON.stringify(b.report) : null;
     const force = b.force === true;
     const { rows } = await query(
-      `UPDATE desk_state SET state = $2::jsonb, report = COALESCE($3::jsonb, report), version = version + 1, updated_at = now()
-       WHERE user_id = $1 AND ($5 OR version = $4) RETURNING version, updated_at`,
+      // call lists the admin added to this desk are kept even if this save (from a tab opened earlier) does not have them yet
+      `WITH keep AS (
+         SELECT COALESCE(jsonb_agg(e), '[]'::jsonb) AS lists FROM desk_state d,
+           jsonb_array_elements(CASE WHEN jsonb_typeof(d.state->'uploads') = 'array' THEN d.state->'uploads' ELSE '[]'::jsonb END) e
+         WHERE d.user_id = $1 AND e->'by'->>'role' = 'admin'
+           AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof($2::jsonb->'uploads') = 'array' THEN $2::jsonb->'uploads' ELSE '[]'::jsonb END) i WHERE i->>'id' = e->>'id'))
+       UPDATE desk_state SET
+         state = CASE WHEN jsonb_array_length(keep.lists) = 0 THEN $2::jsonb
+                 ELSE jsonb_set($2::jsonb, '{uploads}', (CASE WHEN jsonb_typeof($2::jsonb->'uploads') = 'array' THEN $2::jsonb->'uploads' ELSE '[]'::jsonb END) || keep.lists) END,
+         report = COALESCE($3::jsonb, report), version = version + 1, updated_at = now()
+       FROM keep
+       WHERE user_id = $1 AND ($5 OR version = $4) RETURNING version, updated_at, jsonb_array_length(keep.lists) AS kept`,
       [me.id, st, rp, Number(b.version) || 0, force]);
     if (!rows[0]) {
       const cur = await query(`SELECT state, version, updated_at FROM desk_state WHERE user_id = $1`, [me.id]);
@@ -42,7 +52,9 @@ module.exports = route(async (req, res) => {
            ON CONFLICT (user_id, day) DO UPDATE SET state = EXCLUDED.state, report = COALESCE(EXCLUDED.report, desk_snapshots.report), version = EXCLUDED.version, saved_at = now()`,
       [me.id, st, rp, rows[0].version]).catch(e => console.error('snapshot', e.message));
     if (force) audit(me.id, 'save_forced', { version: rows[0].version });
-    return send(res, 200, rows[0]);
+    const out = { version: rows[0].version, updated_at: rows[0].updated_at };
+    if (rows[0].kept > 0) out.adminLists = rows[0].kept;
+    return send(res, 200, out);
   }
   send(res, 405, { error: 'Method not allowed' });
 });
