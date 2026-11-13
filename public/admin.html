@@ -84,6 +84,7 @@ details.danger{border-top:1px dashed var(--line);padding-top:10px}details.danger
 .lbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:#E3E9E5}.lbar i{display:block;height:100%}
 .omix{display:flex;flex-wrap:wrap;gap:8px}.om{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13.5px}
 .om i{width:9px;height:9px;border-radius:50%}.om em{font-style:normal;color:var(--muted);font-size:12px}
+.chip.src{background:#F3EFFC;color:#5B3FB0}
 .load{padding:60px 16px;text-align:center;color:var(--muted)}
 .list{list-style:none;margin:0;padding:0}.list li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #ECF0ED;font-size:14px}.list li:first-child{border-top:0}
 @media (max-width:820px){.top{flex-direction:column;align-items:stretch}}
@@ -237,6 +238,7 @@ function vFarmers() {
 /* ---------- call lists ---------- */
 /* call lists: pick an upload day → how the lists of that day went, across all agronomists */
 let LDAY = null;
+const srcChip = s => String(s).split(/,\s*/).filter(Boolean).map(x => `<span class="chip src">${esc(x.replace(/^\w/, c => c.toUpperCase()))}</span>`).join(' ');
 const isConn = c => c.out !== 'Not reachable';
 const isTalk = c => c.ch === 'Call' || c.ch === 'Visit';
 function listStats(a, list) {
@@ -295,7 +297,7 @@ function vLists() {
    </tbody></table></div></section>
   <section class="card" style="margin-top:18px"><h2>Lists <small>${esc(dayName(LDAY))}</small></h2>
    <div class="tw"><table><thead><tr><th>Uploaded</th><th>Agronomist</th><th>List</th><th class="n">Farmers</th><th class="n">Called</th><th class="n">Connected</th><th class="n">Orders</th><th class="n">Value</th><th class="n">Not called yet</th><th>Progress</th></tr></thead><tbody>
-   ${L.map(({a, u, s}) => `<tr><td>${fmtT(u.at)}</td><td>${esc(a.name)}</td><td><b>${esc(u.name)}</b>${u.by === 'admin' ? ' ' + chip('blue', 'by admin') : ''}</td><td class="n num">${s.farmers}</td><td class="n num">${s.called}</td><td class="n num">${s.conn}</td><td class="n num">${s.orders}</td><td class="n num">${rupee(s.value)}</td><td class="n num">${s.pending}</td><td style="min-width:120px">${bar(s)}</td></tr>`).join('')}
+   ${L.map(({a, u, s}) => `<tr><td>${fmtT(u.at)}</td><td>${esc(a.name)}</td><td><b>${esc(u.name)}</b>${u.source ? ' ' + srcChip(u.source) : ''}${u.by === 'admin' ? ' ' + chip('blue', 'by admin') : ''}</td><td class="n num">${s.farmers}</td><td class="n num">${s.called}</td><td class="n num">${s.conn}</td><td class="n num">${s.orders}</td><td class="n num">${rupee(s.value)}</td><td class="n num">${s.pending}</td><td style="min-width:120px">${bar(s)}</td></tr>`).join('')}
    </tbody></table></div>
    <p class="rm" style="margin:10px 0 0">Calls, orders and outcomes come from each desk's last save. A farmer counts as called once any call or visit is logged on or after the list's upload day.</p></section>`
   : `<section class="card" style="margin-top:18px"><p class="empty">${ALL.length ? 'No lists on this day.' : 'No call lists uploaded yet.'}</p></section>`}`;
@@ -352,8 +354,8 @@ function csv(kind) {
   if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.note]) }
   if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Discount %', 'Status', 'Needs approval', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.disc, o.status, o.approval ? 'yes' : '', o.urgent ? 'yes' : '']) }
   if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
-  if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];
-    R = allLists().filter(x => LDAY === 'all' || !LDAY || x.day === LDAY).map(({a, u, s, day}) => [day, u.at, a.name, u.name, u.by || '', s.farmers, s.called, s.conn, s.nr, s.pending, s.orders, s.value, s.conn ? Math.round(100 * s.ordFarmers / s.conn) : '', s.pops, s.cbs]) }
+  if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Source', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];
+    R = allLists().filter(x => LDAY === 'all' || !LDAY || x.day === LDAY).map(({a, u, s, day}) => [day, u.at, a.name, u.name, u.source || '', u.by || '', s.farmers, s.called, s.conn, s.nr, s.pending, s.orders, s.value, s.conn ? Math.round(100 * s.ordFarmers / s.conn) : '', s.pops, s.cbs]) }
   if (kind === 'callbacks') { H = ['Due', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Why']; R = rows('followups').map(x => [x.due, x.time, x.ag.name, x.name, x.phone, x.why]) }
   const blob = new Blob(['﻿' + [H, ...R].map(r => r.map(q).join(',')).join('\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `gramik-${kind}-${TODAY}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove() }, 500);

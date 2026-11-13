@@ -989,6 +989,17 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 .cropres{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
 .crpick{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:14.5px;font-weight:500;color:var(--ink);cursor:pointer}
 .crpick.first{border-color:var(--green);background:var(--mint);color:var(--deep);font-weight:600}.crpick:hover{border-color:var(--green)}.crpick:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.lnotes{margin-top:10px;border:1px solid #E9D9F6;background:#FAF6FE;border-radius:10px;padding:8px 12px;max-width:760px}
+.lnotes.sm{margin-top:0}
+.lnh{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;justify-content:space-between}.lnh .sl{color:var(--violet);min-width:0}
+.lnotes dl{margin:4px 0 0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 12px;font-size:14.5px}
+.lnotes .lnr{display:contents}.lnotes dt{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:2px}.lnotes dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.lnotes .pb dd{color:var(--hot);font-weight:500}.lnotes .wd dd{color:var(--warm);font-weight:500}.lnotes .fc dd{color:var(--deep);font-weight:500}
+@media (max-width:520px){.lnotes dl{grid-template-columns:minmax(0,1fr)}.lnotes dt{padding-top:4px}}
+.locf{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 10px;align-items:end;margin:8px 0;padding:10px 12px;background:var(--soft);border:1px solid var(--line);border-radius:10px;max-width:760px}
+.locf .acts{grid-column:1/-1}.locf input{width:100%}
+.pfloc{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:6px}.pfloc .sl{min-width:0}
+.upx{font-size:13.5px;max-width:300px}.upx b{font-weight:600;color:var(--muted)}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1186,6 +1197,7 @@ S.newFup = S.newFup.filter(x => x.f && x.id); S.uploads = S.uploads.filter(u => 
 Object.keys(S.prof).forEach(k => { if (!isObj(S.prof[k])) delete S.prof[k] });
 /* more than one crop per farmer: crop 1 = list / crop details, crop 2+ in S.crops[farmer]; S.cropSel[farmer] = crop shown (0 = crop 1) */
 if (!isObj(S.crops)) S.crops = {}; if (!isObj(S.cropSel)) S.cropSel = {};
+if (!isObj(S.loc)) S.loc = {}; /* village / district / pincode filled on the farmer profile */
 Object.keys(S.crops).forEach(k => { S.crops[k] = Array.isArray(S.crops[k]) ? S.crops[k].filter(isObj) : [] });
 if (!isObj(S.recStats)) S.recStats = null;
 
@@ -1323,7 +1335,7 @@ function cropSearchShow() {
 function cropPick(k) { const sel = $('pf-crop'); if (!sel) return; sel.value = k; sel.dispatchEvent(new Event('change', {bubbles: true})); setTimeout(() => { const v = $('pf-var') || $('pf-other'); if (v) v.focus() }, 0) }
 const isCalOnly = (ck, v) => !!(ck && v && D.P[ck].varieties[v] && !D.P[ck].varieties[v].das);
 function prepFarmer(f0) {
-  const f = Object.assign({}, f0, OPS.FARM[f0.id]), p = S.prof[f0.id];
+  const f = Object.assign({}, f0, OPS.FARM[f0.id], S.loc[f0.id] || {}), p = S.prof[f0.id];
   if (p) { f.crop = p.crop; f.variety = p.variety; f.sow = p.sow; f.dss = null; if (p.acres) f.acres = p.acres; f.filled = p }
   const extra = (S.crops[f0.id] || []); let sel = +S.cropSel[f0.id] || 0; if (sel > extra.length || sel < 0) sel = 0;
   f.cropList = [{crop: f.crop, variety: f.variety, sow: f.sow || (f.dss != null ? addDays(TODAY, -f.dss) : null), acres: f.acres}, ...extra]; f.cropIdx = sel;
@@ -1523,6 +1535,20 @@ function tileList(k, ctx) {
 /* who to call today, and why: overdue and due follow-ups, hot AI-call leads, farmers without POP, must-do items this stage */
 /* today's queue holds two kinds of calls: farmers from uploaded call lists (and undecided farmers coming back round), and callbacks */
 /* the day a call list was uploaded, in local time (lists are grouped by this day in the call queue) */
+/* future crop / problem / weather damage from uploaded lists (e.g. Bolna AI calls): latest list that has a value wins */
+function listNotes(fid) {
+  let o = null;
+  S.uploads.forEach(u => { if (u.removed) return; const x = u.rows.find(r => r.fid === fid); if (x && (x.future || x.problem || x.wxd)) o = {future: x.future || '', problem: x.problem || '', wxd: x.wxd || '', src: x.src || u.source || '', list: u.name, at: u.at} });
+  return o;
+}
+let LOCED = null;
+const locv = v => v != null && !/^[\s\-–—]*$/.test(String(v)) ? String(v) : '';
+function notesBox(fid, compact) {
+  const n = listNotes(fid); if (!n) return '';
+  const row = (k, l, v) => v ? `<div class="lnr ${k}"><dt>${l}</dt><dd>${esc(v)}</dd></div>` : '';
+  return `<div class="lnotes${compact ? ' sm' : ''}"><div class="lnh"><span class="sl">From the ${esc(n.src ? n.src.replace(/^\w/, c => c.toUpperCase()) + ' ' : '')}call</span><span class="rm">${esc(n.list)} · ${fmt(locDay(n.at))}</span></div>
+    <dl>${row('pb', 'Problem', n.problem)}${row('wd', 'Weather damage', n.wxd)}${row('fc', 'Future crop', n.future)}</dl></div>`;
+}
 const locDay = s => { const d = new Date(s); return isNaN(d) ? String(s || '').slice(0, 10) : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') };
 function callQueue() {
   const rows = new Map(), fu = allFup(), done = new Set();
@@ -1537,7 +1563,7 @@ function callQueue() {
   const notInt = new Set(S.undecided.filter(u => u.ni && !u.closed).map(u => u.f)); /* Not interested: never back in the queue, also not from a later list */
   S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || notInt.has(x.fid) || calledSince(x.fid, u.at.slice(0, 10))) return;
     const ex = rows.get(f.id); if (ex) { if (ex.st !== 'done') { ex.up = ex.up || u.name; if (x.pri === 'high') ex.pri = 'high' } return }
-    put(f, {pri: x.pri || 'med', st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
+    put(f, {pri: x.pri || 'med', st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || x.problem || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
   const last = f => { const L = logsOf(f.id)[0], H = histOf(f)[0], d = [L && L.d, H && H.date].filter(Boolean).sort().pop(); return d ? (d === TODAY ? 'Today' : diff(d, TODAY) === 1 ? 'Yesterday' : diff(d, TODAY) + ' days ago') : 'New farmer' };
   const PR2 = {high: 0, med: 1, low: 2};
   return [...rows.values()].map(r => Object.assign(r, {last: r.last || last(r.f)}))
@@ -1633,6 +1659,7 @@ function vToday() {
     briefHtml = `<div class="cbh"><div><span class="lbl2 g">Call brief</span><h2 class="cbn">${esc(f.short)}</h2><span class="rm num">${esc(f.phone)} · ${esc(f.village)}, ${esc(f.district)} · ${f.acres} ac</span></div><span class="qs ${stCls(sel)}">${esc(sel.status)}</span></div>
      <div class="cbs"><div class="cbsl"><b>${esc(f.cropName)}${f.b ? ' · ' + esc(f.stageEn) : ''}</b><span class="rm num">${esc(b.dayLabel)}</span></div>${b.band.length ? `<div class="cbband">${b.band.map(k => `<i class="${k}"></i>`).join('')}</div>` : ''}</div>
      <div class="cbbox"><span class="lbl2">Why you are calling</span><span>${esc(sel.purpose)}</span><span class="rm">Last time: ${esc(b.lastNote)}</span></div>
+     ${notesBox(sel.f.id, true)}
      <div class="cbsay"><span class="lbl2 g">Say this</span><span class="cbhi">${esc(b.say)}</span><button class="lk small" data-copy="${esc(b.say)}">Copy</button></div>
      <div class="cbrec"><span class="lbl2">Recommend</span>${b.prods.length ? b.prods.map(p => `<div class="cbp"><div style="min-width:0"><b>${esc(p.p)}</b><div class="rm">${esc(p.why)}</div></div><div class="cbpr"><b class="num">${esc(p.dose)}</b><span class="${p.ok ? 'ok' : 'lo'}">${esc(p.stock)}</span></div></div>`).join('')
        : `<p class="rm" style="margin:4px 0 0">${f.b ? 'No product due at this stage.' : 'Fill crop details on the farmer page to get recommendations.'}</p>`}</div>
@@ -1738,8 +1765,13 @@ function vFarmer() {
   const onCall = CALLING === f.id;
   return `${onCall ? '' : `<button class="lk" data-act="back" style="margin-bottom:8px">← ${RET && RET.view === 'today' ? 'Back to call queue' : RET && RET.view === 'after' ? 'Back to After calls' : RET && RET.view === 'me' ? 'Back to My profile' : 'All farmers'}</button>`}${onCall ? `<div class="cbcall oncall"><span class="cbdot"></span><div><b>On call with ${esc(f.short)}</b><span class="num">${esc(f.phone)}</span></div><button class="btn ghost sm" data-copy="${esc(f.phone)}">Copy number</button><button class="btn sm cbend" data-act="qcomplete">Complete call</button></div>` : ''}
   <section class="card"><div class="fhead"><div><h2>${esc(f.short)}</h2>
-    <div class="facts"><span>${esc(f.village)}, ${esc(f.district)}</span><span>Pincode <b class="num">${esc(f.pin)}</b></span><span><b class="num">${f.acres}</b> acres</span><span>Phone <b class="num">${esc(f.phone)}</b> <button class="lk small" data-copy="${esc(f.phone)}">Copy</button></span><span>BSO <b>${esc((OPS.BSOS.find(b => b.id === f.bso) || {}).name || '–')}</b></span></div>
+    ${LOCED === f.id ? `<form class="locf" id="locf"><label class="field"><span>Village</span><input type="text" id="loc-vil" value="${esc(locv(f.village))}" placeholder="Village / gaon" autocomplete="off"></label>
+      <label class="field"><span>District</span><input type="text" id="loc-dist" value="${esc(locv(f.district))}" placeholder="District / zila" autocomplete="off"></label>
+      <label class="field"><span>Pincode</span><input type="text" id="loc-pin" inputmode="numeric" maxlength="6" value="${esc(locv(f.pin))}" placeholder="6 digits"></label>
+      <div class="acts"><button class="btn sm" type="submit">Save</button><button class="btn ghost sm" type="button" data-act="loccancel">Cancel</button></div></form>` : ''}
+    <div class="facts"><span>${locv(f.village) || locv(f.district) ? esc([locv(f.village), locv(f.district)].filter(Boolean).join(', ')) : '<span class="muted">Village not filled</span>'}</span><span>Pincode ${locv(f.pin) ? `<b class="num">${esc(f.pin)}</b>` : '<span class="muted">not filled</span>'}${LOCED === f.id ? '' : ` <button class="lk small" type="button" data-act="locedit">${locv(f.village) && locv(f.district) && locv(f.pin) ? 'Edit' : 'Add'} location</button>`}</span><span><b class="num">${f.acres}</b> acres</span><span>Phone <b class="num">${esc(f.phone)}</b> <button class="lk small" data-copy="${esc(f.phone)}">Copy</button></span><span>BSO <b>${esc((OPS.BSOS.find(b => b.id === f.bso) || {}).name || '–')}</b></span></div>
     ${cropSwitch(f)}
+    ${notesBox(f.id)}
     <div class="chips" style="margin-top:6px">${f.lens ? chip('blue', 'Lens ID ' + f.id + ' · fetched from Lens') : f.uploaded ? chip('warm', 'New farmer from uploaded list') : f.sample ? SAMPLE : chip('ok', 'Lens ID ' + f.id)}${upOf(f.id).map(u => chip('upl', 'List: ' + u.name + ' · ' + fmt(u.at.slice(0, 10)))).join('')}${!f.pop.ok ? chip('solid', f.pop.nocrop ? 'No POP for this crop' : 'POP not filled') : ''}${(() => { const ok = histOf(f).filter(o => o.status !== 'Returned'); return ok.length ? chip('blue', ok.length + ' orders · ' + rupee(ok.reduce((t, o) => t + o.lines.reduce((u, l) => u + l.amt, 0), 0))) : chip('mute', 'No orders yet') })()}${(OPS.IVR[f.id] || []).map(x => chip('violet', 'IVR heard: ' + x)).join('')}${fu ? chip(fu.due < TODAY ? 'solid' : 'warm', 'Follow-up ' + relDue(fu.due)) : ''}</div>
     ${dup ? `<p class="note hot" style="margin-top:8px">Possible duplicate record: Lens ID ${esc(dup.id)}. ${esc(dup.why)}. Merge before creating orders.</p>` : ''}</div>
    <div style="display:flex;gap:12px;align-items:center"><div class="score ${r.band}" title="Rating">${r.sc}</div><div class="small"><b>${r.band}</b> lead<br><span class="muted">${r.needsSenior ? 'Needs senior check' : 'Checked by ' + esc(OPS.RATERS[r.by][0])}</span></div></div></div>
@@ -1870,7 +1902,7 @@ function profDraft(f) {
   if (PD && PD.id === f.id && (!PD.add || (OPEN_FORM && OPEN_FORM.add))) return PD;
   const ck = f.crop ? ENG.resolveCrop(f.crop) : '';
   const vs = ck ? Object.keys(D.P[ck].varieties) : [], v = f.variety && vs.find(x => norm(x) === norm(f.variety));
-  return PD = {id: f.id, crop: ck || (f.crop ? '__other' : ''), other: ck ? '' : (f.crop || ''), variety: v || (f.variety ? '__unsure' : ''), mode: 'date', sow: f.sowISO || '', stage: '', acres: f.acres || '', asked: f.variety || ''};
+  return PD = {id: f.id, crop: ck || (f.crop ? '__other' : ''), other: ck ? '' : (f.crop || ''), variety: v || (f.variety ? '__unsure' : ''), mode: 'date', sow: f.sowISO || '', stage: '', acres: f.acres || '', asked: f.variety || '', vil: f.village || '', dist: f.district || '', pin: f.pin || ''};
 }
 function draftSow(d) {
   if (d.mode === 'date') return d.sow;
@@ -1903,7 +1935,13 @@ function profForm(f) {
       ${d.mode === 'date' ? `<label class="field"><span>Sowing / transplant date</span><input type="date" id="pf-sow" max="${TODAY}" value="${esc(d.sow)}"></label>`
         : `<label class="field wide"><span>Stage the crop is in now</span><select id="pf-stage"><option value="">Choose stage</option>${rows.map((r, i) => `<option value="${i}"${String(d.stage) === String(i) ? ' selected' : ''}>${esc(r.en)} · ${esc(r.hi)} (day ${r.a}–${Math.max(r.a, r.b)})</option>`).join('')}</select></label>`}` : ''}
     ${cal ? '<p class="rm wide">This variety follows a calendar plan, so the sowing date is not needed.</p>' : ''}
-   </div>${prev}
+   </div>
+   <div class="pfloc"><span class="sl">Farmer location</span><div class="form">
+    <label class="field"><span>Village</span><input type="text" id="pf-vil" value="${esc(d.vil)}" placeholder="Village / gaon" autocomplete="off"></label>
+    <label class="field"><span>District</span><input type="text" id="pf-dist" value="${esc(d.dist)}" placeholder="District / zila" autocomplete="off"></label>
+    <label class="field"><span>Pincode</span><input type="text" id="pf-pin" inputmode="numeric" maxlength="6" value="${esc(d.pin)}" placeholder="6 digits"></label>
+    <p class="rm wide" style="margin:0">${(() => { const pi = /^\d{6}$/.test(String(d.pin)) ? pinInfo(d.pin) : null; return pi && pi.ok ? 'Pincode ' + esc(d.pin) + ': ' + esc(pi.place || '') + (pi.district ? ', ' + esc(pi.district) : '') + '. Weather and spray advice follow this pincode.' : String(d.pin || '').length && !/^\d{6}$/.test(String(d.pin)) ? '<span style="color:var(--hot)">Pincode needs 6 digits.</span>' : 'Weather and spray advice follow the pincode.' })()}</p>
+   </div></div>${prev}
    <div class="acts" style="margin-top:12px"><button class="btn" data-act="pfsave" data-id="${f.id}"${(ck && vk && (cal || sow)) || (d.crop === '__other' && d.other.trim()) ? '' : ' disabled'}>${ck ? 'Save and build POP plan' : 'Save crop'}</button>${edit || add ? '<button class="btn ghost" data-act="cancel">Cancel</button>' : ''}</div></section>`;
 }
 const RISK = {H: ['hot', 'High risk'], M: ['warm', 'Medium risk'], L: ['leaf', 'Low risk']};
@@ -2394,7 +2432,9 @@ let UPL = null;
 const UCOLS = {name: ['name', 'farmer', 'farmername', 'customer', 'customername', 'naam'], phone: ['phone', 'mobile', 'mobileno', 'mobilenumber', 'phoneno', 'phonenumber', 'contact', 'contactno', 'number'],
   id: ['lensid', 'farmerid', 'id', 'customerid', 'lenscode'], village: ['village', 'gram', 'gaon'], district: ['district', 'zila', 'jila'], pin: ['pincode', 'pin', 'postalcode', 'zip'],
   crop: ['crop', 'fasal'], variety: ['variety', 'seed', 'kism', 'seedvariety'], sow: ['sowingdate', 'sowing', 'sowdate', 'dateofsowing', 'transplantdate', 'transplanting', 'sown', 'buvai'],
-  acres: ['acres', 'acre', 'land', 'area', 'landsize', 'landacres'], reason: ['reason', 'purpose', 'remark', 'remarks', 'note', 'notes', 'callpurpose', 'whycall'], pri: ['priority', 'pri']};
+  acres: ['acres', 'acre', 'land', 'area', 'landsize', 'landacres'], reason: ['reason', 'purpose', 'remark', 'remarks', 'note', 'notes', 'callpurpose', 'whycall'], pri: ['priority', 'pri'],
+  future: ['futurecrop', 'nextcrop', 'upcomingcrop', 'plannedcrop', 'futurecrops', 'agilifasal', 'aglifasal'], problem: ['problemdescription', 'problem', 'problems', 'issue', 'issuedescription', 'complaint', 'cropproblem', 'samasya'],
+  wxd: ['weatherdamage', 'cropdamage', 'damage', 'weatherloss', 'weatherdamages', 'nuksan'], src: ['source', 'leadsource', 'datasource', 'channel']};
 const UHEAD = ['Name', 'Phone', 'Lens ID', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Reason', 'Priority'];
 const phone10 = p => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' };
 function parseCSV(text) {
@@ -2443,7 +2483,8 @@ function readRows(table, fileName) {
   table.slice(hr + 1).forEach((row, i) => {
     const g = k => col[k] != null ? String(row[col[k]] ?? '').trim() : '';
     const r = {line: i + hr + 2, name: g('name'), phone: g('phone'), id: g('id'), village: g('village'), district: g('district'), pin: g('pin').replace(/\D/g, ''), crop: g('crop'), variety: g('variety'),
-      sow: parseDateCell(col.sow != null ? row[col.sow] : ''), acres: parseFloat(g('acres')) || 0, reason: g('reason'), pri: /high|urgent|1/i.test(g('pri')) ? 'high' : /low|3/i.test(g('pri')) ? 'low' : g('pri') ? 'med' : ''};
+      sow: parseDateCell(col.sow != null ? row[col.sow] : ''), acres: parseFloat(g('acres')) || 0, reason: g('reason'), pri: /high|urgent|1/i.test(g('pri')) ? 'high' : /low|3/i.test(g('pri')) ? 'low' : g('pri') ? 'med' : '',
+      future: g('future'), problem: g('problem'), wxd: g('wxd'), src: g('src')};
     if (!r.name && !r.phone && !r.id) return;
     const ph = phone10(r.phone);
     if (!ph && !r.id) { out.push(Object.assign(r, {type: 'skip', why: 'No valid phone number'})); return }
@@ -2453,7 +2494,7 @@ function readRows(table, fileName) {
     if (m.type === 'new' && !r.name) r.name = 'Farmer ' + ph.slice(-4);
     r.preview = previewFarmer(r); out.push(r);
   });
-  return {rows: out, fileName};
+  return {rows: out, fileName, xcols: ['future', 'problem', 'wxd', 'src'].filter(k => col[k] != null)};
 }
 /* what this farmer will look like once added: crop, stage and POP status */
 function previewFarmer(r) {
@@ -2500,11 +2541,13 @@ function renderUpload() {
     const R = UPL.rows, ok = R.filter(r => r.type !== 'skip'), cnt = t => R.filter(r => r.type === t).length;
     body = `<div class="uph"><h3>${esc(UPL.fileName)}</h3><button class="btn ghost sm" data-act="upclose">Close</button></div>
      <div class="upsum">${['mine', 'lens', 'new', 'skip'].map(t => `<div class="ups ${t}"><b class="num">${cnt(t)}</b><span>${UTYPE[t][1]}</span></div>`).join('')}</div>
-     <div class="tw2 uptab"><table><thead><tr><th>Row</th><th>Farmer</th><th>Crop · stage (POP)</th><th>Reason</th><th>Result</th></tr></thead><tbody>
+     ${(() => { const xc = UPL.xcols || [], srcs = [...new Set(R.map(r => (r.src || '').trim()).filter(Boolean))]; return xc.length ? `<p class="note sky" style="margin:0">Extra columns found: ${xc.map(k => ({future: 'Future crop', problem: 'Problem description', wxd: 'Weather damage', src: 'Source'})[k]).join(', ')}. They show on each farmer's profile and call brief.${srcs.length ? ' Source: <b>' + esc(srcs.join(', ')) + '</b>.' : ''}</p>` : '' })()}
+     <div class="tw2 uptab"><table><thead><tr><th>Row</th><th>Farmer</th><th>Crop · stage (POP)</th><th>Reason</th>${(UPL.xcols || []).some(k => k !== 'src') ? '<th>From the call</th>' : ''}<th>Result</th></tr></thead><tbody>
      ${R.map(r => { const p = r.preview; return `<tr class="${r.type === 'skip' ? 'skip' : ''}"><td class="num rm">${r.line}</td>
        <td><b>${esc(r.type === 'mine' ? r.f.short : r.type === 'lens' ? r.rec.name : r.name || '–')}</b><div class="rm num">${esc(r.phone || r.id || '')}${r.type === 'lens' ? ' · ' + esc(r.rec.id) : r.type === 'mine' && !r.f.sample ? ' · ' + esc(r.f.id) : ''}</div></td>
        <td>${r.type === 'skip' || !p ? '<span class="rm">–</span>' : p.b ? `${esc(p.cropName)} · ${esc(p.stageEn)}<div class="rm">${p.b.stage.das != null && p.b.stage.das >= 0 ? 'Day ' + p.b.stage.das + ' · ' : ''}${esc(p.variety || '')}</div>` : `${esc(p.cropName)}<div>${chip('needpop', p.pop.nocrop ? 'No POP for this crop' : 'Fill crop details on the call')}</div>`}</td>
        <td>${esc(r.reason || '')}${r.pri === 'high' ? ' ' + chip('hot', 'High') : ''}</td>
+       ${(UPL.xcols || []).some(k => k !== 'src') ? `<td class="upx">${r.problem ? `<div><b>Problem:</b> ${esc(r.problem)}</div>` : ''}${r.wxd ? `<div><b>Weather damage:</b> ${esc(r.wxd)}</div>` : ''}${r.future ? `<div><b>Future crop:</b> ${esc(r.future)}</div>` : ''}${r.problem || r.wxd || r.future ? '' : '<span class="rm">–</span>'}</td>` : ''}
        <td>${chip(UTYPE[r.type][0], r.type === 'skip' ? r.why : UTYPE[r.type][1])}</td></tr>` }).join('')}</tbody></table></div>
      <label class="ck" style="margin-top:4px"><input type="checkbox" id="uphigh"${UPL.high ? ' checked' : ''}> Call this list first (mark every farmer high priority)</label>
      ${window.__BOOT.adminView ? `<p class="note">As admin: these farmers are added to <b>${esc(window.__BOOT.owner.name)}</b>’s call queue.</p>` : ''}${UPL.err2 ? `<p class="note hot">${esc(UPL.err2)}</p>` : ''}
@@ -2521,11 +2564,13 @@ async function addUpload() {
     let fid;
     if (r.type === 'mine') fid = r.f.id;
     else if (r.type === 'lens') { const rec = Object.assign({}, r.rec, {list: UPL.fileName}); farmers.push(rec); addFarmer(rec); fid = rec.id }
-    else { const rec = {id: bid + '-' + (i + 1), name: r.name, phone: phone10(r.phone), village: r.village, district: r.district, pin: r.pin, crop: r.crop || null, variety: r.variety || null, sow: r.sow || null, acres: r.acres, state: 'Uttar Pradesh', orders: 0, value: 0, bought: [], lensPop: [], sample: false, uploaded: true, list: UPL.fileName};
+    else { const rec = {id: bid + '-' + (i + 1), name: r.name, phone: phone10(r.phone), village: r.village, district: r.district, pin: r.pin, crop: r.crop || null, variety: r.variety || null, sow: r.sow || null, acres: r.acres, state: 'Uttar Pradesh', orders: 0, value: 0, bought: [], lensPop: [], sample: false, uploaded: true, list: UPL.fileName, source: r.src || ''};
       farmers.push(rec); addFarmer(rec); fid = rec.id }
-    rows.push({fid, reason: r.reason, pri: UPL.high ? 'high' : (r.pri || 'med'), type: r.type});
+    rows.push(Object.assign({fid, reason: r.reason, pri: UPL.high ? 'high' : (r.pri || 'med'), type: r.type}, r.future ? {future: r.future} : {}, r.problem ? {problem: r.problem} : {}, r.wxd ? {wxd: r.wxd} : {}, r.src ? {src: r.src} : {}));
   });
-  const entry = {id: bid, name: UPL.fileName, at: new Date().toISOString(), rows, farmers, counts: {mine: R.filter(r => r.type === 'mine').length, lens: R.filter(r => r.type === 'lens').length, new: R.filter(r => r.type === 'new').length, skip: UPL.rows.length - R.length}};
+  const srcs = {}; R.forEach(r => { const v = (r.src || '').trim(); if (v) srcs[v.toLowerCase()] = (srcs[v.toLowerCase()] || 0) + 1 });
+  const source = Object.entries(srcs).sort((x, y) => y[1] - x[1]).map(x => x[0]).join(', ');
+  const entry = {id: bid, name: UPL.fileName, at: new Date().toISOString(), source, rows, farmers, counts: {mine: R.filter(r => r.type === 'mine').length, lens: R.filter(r => r.type === 'lens').length, new: R.filter(r => r.type === 'new').length, skip: UPL.rows.length - R.length}};
   if (B.adminView) {
     if (!rows.length) { UPL.err2 = 'No farmers to add.'; return renderUpload() }
     UPL.saving = true; renderUpload();
@@ -2767,14 +2812,18 @@ document.addEventListener('click', ev => {
   if (a === 'needlist') { FPOP = 'need'; return go('farmers') }
   if (a === 'fpop') { FPOP = t.dataset.k; return rerender() }
   if (a === 'pfcroppick') return cropPick(t.dataset.k);
+  if (a === 'locedit') { LOCED = CUR; return rerender() }
+  if (a === 'loccancel') { LOCED = null; return rerender() }
   if (a === 'cropmenu') { CROPMENU = CROPMENU === CUR ? null : CUR; return rerender() }
   if (a === 'cropsel') { const k = +t.dataset.k; S.cropSel[CUR] = k; CROPMENU = null; PD = null; OPEN_FORM = null; STG = null; FTAB = 'crop'; const nf = refit(CUR); save(); toast('Crop ' + (k + 1) + ': ' + nf.cropName + (nf.pop.ok ? ' · ' + nf.stageEn : ' · fill crop details')); return rerender() }
-  if (a === 'cropadd') { CROPMENU = null; STG = null; PD = {id: CUR, add: true, crop: '', other: '', variety: '', mode: 'date', sow: '', stage: '', acres: '', asked: ''}; OPEN_FORM = {kind: 'prof', add: true}; FTAB = 'crop'; return rerender() }
+  if (a === 'cropadd') { CROPMENU = null; STG = null; PD = {id: CUR, add: true, crop: '', other: '', variety: '', mode: 'date', sow: '', stage: '', acres: '', asked: '', vil: FM[CUR].village || '', dist: FM[CUR].district || '', pin: FM[CUR].pin || ''}; OPEN_FORM = {kind: 'prof', add: true}; FTAB = 'crop'; return rerender() }
   if (a === 'cropdel') { const k = +t.dataset.k, L = S.crops[CUR] || [], gone = cropLbl(L[k - 1]); L.splice(k - 1, 1); S.crops[CUR] = L; const sl = +S.cropSel[CUR] || 0; S.cropSel[CUR] = sl === k ? 0 : sl > k ? sl - 1 : sl;
     CROPMENU = null; PD = null; OPEN_FORM = null; STG = null; refit(CUR); save(); toast('Removed ' + gone); return rerender() }
   if (a === 'profedit') { PD = null; OPEN_FORM = {kind: 'prof'}; return rerender() }
   if (a === 'pfmode') { PD.mode = t.dataset.m; return rerender() }
   if (a === 'pfsave') { const f = FM[id], d = PD, ck = d.crop && d.crop !== '__other' ? d.crop : null;
+    const pin = String(d.pin || '').replace(/\D/g, ''); if (pin && pin.length !== 6) { toast('Pincode needs 6 digits'); return }
+    if (d.vil !== undefined && (d.vil.trim() !== (f.village || '') || d.dist.trim() !== (f.district || '') || pin !== String(f.pin || ''))) S.loc[id] = {village: d.vil.trim(), district: d.dist.trim(), pin};
     const vk = ck ? (d.variety === '__unsure' ? Object.keys(D.P[ck].varieties).sort()[0] : d.variety) : null;
     const rec = {crop: ck || d.other.trim(), variety: vk, sow: ck && vk && !isCalOnly(ck, vk) ? draftSow(d) : null, acres: +d.acres || f.acres, on: TODAY, unsureVariety: d.variety === '__unsure' ? (d.asked || true) : false};
     if (d.add) { S.crops[id] = (S.crops[id] || []).concat([rec]); S.cropSel[id] = S.crops[id].length } else if (f.cropIdx > 0 && S.crops[id] && S.crops[id][f.cropIdx - 1]) S.crops[id][f.cropIdx - 1] = rec; else S.prof[id] = rec;
@@ -2903,7 +2952,7 @@ document.addEventListener('change', ev => {
   if (t.dataset && t.dataset.act === 'seen') { const s = S.seen[t.dataset.id] = S.seen[t.dataset.id] || {}; s[t.dataset.issue] = t.checked; save();
     if (!$('drawer').hidden) drawer(true); else rerender(); return }
   if (t.id === 'xdisc') { S.extraDisc = S.extraDisc || {}; S.extraDisc[CUR] = Math.max(0, +t.value || 0); save(); return drawer(true) }
-  if (t.id && t.id.startsWith('pf-') && PD) { const k = {'pf-crop': 'crop', 'pf-var': 'variety', 'pf-sow': 'sow', 'pf-stage': 'stage', 'pf-acres': 'acres', 'pf-other': 'other'}[t.id];
+  if (t.id && t.id.startsWith('pf-') && PD) { const k = {'pf-crop': 'crop', 'pf-var': 'variety', 'pf-sow': 'sow', 'pf-stage': 'stage', 'pf-acres': 'acres', 'pf-other': 'other', 'pf-vil': 'vil', 'pf-dist': 'dist', 'pf-pin': 'pin'}[t.id];
     PD[k] = t.value; if (k === 'crop') { PD.variety = ''; PD.stage = '' } if (k === 'variety') PD.stage = ''; return rerender() }
   if (t.id === 'my-pay' || t.id === 'my-src' || t.id === 'my-kind') { MY[t.id.slice(3)] = t.value; MY.page = 0; return rerender() }
   if (t.id === 'fdist') { FDIST = t.value; return rerender() }
@@ -2916,6 +2965,11 @@ document.addEventListener('change', e => { if (AF && e.target && e.target.id ===
 document.addEventListener('input', e => { if (e.target && e.target.id === 'st-q') { SQ = e.target.value; const pos = e.target.selectionStart; rerender(); const i = $('st-q'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } } });
 $('fab').addEventListener('click', () => { CV = null; catalog(); drawer(true) });
 $('catp').addEventListener('input', e => { if (!CV) return; if (e.target.id === 'cat-q') { CV.q = e.target.value; const pos = e.target.selectionStart; catalog(); const i = $('cat-q'); i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } if (e.target.id === 'cat-gk') { CV.gk = e.target.checked; catalog() } });
+document.addEventListener('submit', e => { if (e.target.id !== 'locf') return; e.preventDefault();
+  const f = FM[CUR], v = id => ($(id).value || '').trim(), pin = v('loc-pin').replace(/\D/g, '');
+  if (pin && pin.length !== 6) { toast('Pincode needs 6 digits'); return }
+  S.loc[CUR] = {village: v('loc-vil'), district: v('loc-dist'), pin}; LOCED = null; refit(CUR); save();
+  const pi = pin ? pinInfo(pin) : null; toast('Location saved' + (pin ? (pi && pi.ok ? ' · weather for ' + (pi.place || pin) : ' · pincode not in the weather list') : '')); rerender() });
 document.addEventListener('keydown', e => { if (e.target && e.target.id === 'pf-cropq' && e.key === 'Enter') { e.preventDefault(); const L = cropFind(e.target.value); if (L.length) cropPick(L[0]) } });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && (e.target.classList.contains('orow') || e.target.classList.contains('qrow'))) { e.preventDefault(); e.target.click(); return } if (e.key === 'Escape' && AF) { AF = null; renderAF(); return } if (e.key === 'Escape' && CV) { CV = null; catalog(); return } if (e.key === 'Escape' && RS) { RS = null; renderResched(); return } if (e.key === 'Escape' && UPL) { UPL = null; renderUpload(); return } if (e.key === 'Escape' && !$('drawer').hidden) drawer(false) });
 /* ================= report for the admin desk ================= */
@@ -2932,7 +2986,7 @@ function deskReport() {
       sow: f.sowISO || '', acres: f.acres, stage: f.stageEn, crops: f.cropList.map(cropLbl), cropNo: f.cropIdx + 1, pop: !!f.pop.ok, missing: f.pop.missing || [], list: f.list || '', filled: !!f.filled})),
     calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f)})),
     orders,
-    uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed, by: u.by && u.by.role === 'admin' ? 'admin' : 'agronomist', fids: u.rows.map(x => x.fid)})),
+    uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed, by: u.by && u.by.role === 'admin' ? 'admin' : 'agronomist', source: u.source || '', fids: u.rows.map(x => x.fid)})),
     followups: fu.map(x => ({f: x.f, name: nm(x.f), phone: ph(x.f), due: x.due, time: x.time || '', why: x.why || ''})),
     undecided: S.undecided.filter(u => !u.closed).map(u => ({f: u.f, name: nm(u.f), at: u.at, back: u.back, ni: !!u.ni, note: u.note || ''})),
     pops: Object.entries(S.prof).map(([id, p]) => ({f: id, name: nm(id), on: p.on || '', crop: p.crop, variety: p.variety || '', sow: p.sow || ''})),

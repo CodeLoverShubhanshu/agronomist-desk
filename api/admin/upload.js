@@ -13,7 +13,7 @@ module.exports = route(async (req, res) => {
     return send(res, 400, { error: 'This call list has no farmers to add.' });
   if (u.rows.length > 5000) return send(res, 400, { error: 'This list is too long (more than 5000 rows). Split it into smaller files.' });
   const entry = { id: String(u.id), name: String(u.name || 'Call list'), at: new Date().toISOString(), rows: u.rows, farmers: u.farmers,
-    counts: u.counts && typeof u.counts === 'object' ? u.counts : {}, by: { id: me.id, name: me.name, role: 'admin' } };
+    counts: u.counts && typeof u.counts === 'object' ? u.counts : {}, source: String(u.source || '').slice(0, 80), by: { id: me.id, name: me.name, role: 'admin' } };
   await query(`INSERT INTO desk_state (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [uid]);
   const { rows } = await query(
     `UPDATE desk_state SET
