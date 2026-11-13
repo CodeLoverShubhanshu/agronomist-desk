@@ -977,6 +977,14 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 .cswr>button:first-child b{font:600 15px var(--display);color:var(--deep)}.cswr>button:first-child .sl{min-width:0}
 .cswr>button:first-child:focus-visible{outline:2px solid var(--green);border-radius:8px}
 .cswm>.btn{align-self:flex-start}
+.qdays{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-4px 0 2px}.qdays .sl{min-width:0;margin-right:2px}
+.qdb{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 12px;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink)}
+.qdb b{font:600 12px var(--display);color:var(--muted);margin-left:2px}.qdb[aria-pressed="true"]{background:var(--deep);border-color:var(--deep);color:#fff}.qdb[aria-pressed="true"] b{color:#CFE3D6}
+.qdb:hover{border-color:#B9C6BF}.qdb:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.qt tr.qsec td{background:var(--soft);padding:8px;font-size:13px;color:var(--muted);border-top:1px solid var(--line)}.qt tr.qsec td b{font:600 14px var(--display);color:var(--deep)}
+.qt tr.qsec td .num{display:inline-block;margin-left:4px;border-radius:999px;padding:0 7px;background:#E9EFEC;font-size:12px;font-weight:600;color:var(--ink)}
+.qt tr.qsec0 td{color:var(--muted);font-size:13.5px;padding:10px 8px}
+.qs.pending{background:#F3ECE2;color:#7A5320}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1429,7 +1437,7 @@ function renderPage() {
 
 /* ================= Today ================= */
 /* ================= Today: the daily call desk ================= */
-let QTAB = 'all', QOPEN = null, QSEL = null;
+let QTAB = 'all', QOPEN = null, QSEL = null, QDAY = TODAY;
 const CALLED = ['Resolved', 'Product recommended', 'Ordered', 'Follow-up needed', 'Not interested'];
 function maskPh(p) { p = String(p || ''); return p.length >= 10 ? '+91 ' + p.slice(0, 2) + '••• ••' + p.slice(-3) : p }
 /* the sample call day: before the shift starts (night, early morning) show the whole sample day so the demo is never empty */
@@ -1484,6 +1492,8 @@ function tileList(k, ctx) {
 }
 /* who to call today, and why: overdue and due follow-ups, hot AI-call leads, farmers without POP, must-do items this stage */
 /* today's queue holds two kinds of calls: farmers from uploaded call lists (and undecided farmers coming back round), and callbacks */
+/* the day a call list was uploaded, in local time (lists are grouped by this day in the call queue) */
+const locDay = s => { const d = new Date(s); return isNaN(d) ? String(s || '').slice(0, 10) : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') };
 function callQueue() {
   const rows = new Map(), fu = allFup(), done = new Set();
   const put = (f, r) => { if (!f || rows.has(f.id)) return; rows.set(f.id, Object.assign({f}, r)) };
@@ -1496,7 +1506,7 @@ function callQueue() {
     put(f, {pri: 'med', st: 'list', status: 'From list', up: 'Call loop', sub: 'Undecided on ' + fmt(u.at), purpose: 'Undecided last time' + (u.note ? ': ' + u.note : '') + '. Ask again.'}) });
   S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || calledSince(x.fid, u.at.slice(0, 10))) return;
     const ex = rows.get(f.id); if (ex) { if (ex.st !== 'done') { ex.up = ex.up || u.name; if (x.pri === 'high') ex.pri = 'high' } return }
-    put(f, {pri: x.pri || 'med', st: 'list', status: 'From list', up: u.name, sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
+    put(f, {pri: x.pri || 'med', st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
   const last = f => { const L = logsOf(f.id)[0], H = histOf(f)[0], d = [L && L.d, H && H.date].filter(Boolean).sort().pop(); return d ? (d === TODAY ? 'Today' : diff(d, TODAY) === 1 ? 'Yesterday' : diff(d, TODAY) + ' days ago') : 'New farmer' };
   const PR2 = {high: 0, med: 1, low: 2};
   return [...rows.values()].map(r => Object.assign(r, {last: r.last || last(r.f)}))
@@ -1559,11 +1569,24 @@ function vToday() {
   /* queue + selection */
   const TABS = [['all', 'All', open.length], ['list', 'From list', open.filter(r => r.st === 'list').length], ['callback', 'Callbacks', open.filter(r => r.st === 'callback').length], ['done', 'Completed', Q.filter(r => r.st === 'done').length]];
   if (!TABS.some(t => t[0] === QTAB)) QTAB = 'all';
-  const showQ = Q.filter(r => QTAB === 'all' ? r.st !== 'done' : r.st === QTAB);
-  if (!QSEL || !Q.some(r => r.f.id === QSEL)) QSEL = (open[0] || Q[0] || {f: {}}).f.id;
+  /* day filter: the chosen day's uploaded list on top, callbacks below it, and calls left over from earlier lists last ("Pending calls") */
+  const isCb = r => r.st === 'callback' || r.up === 'Call loop';
+  const listDays = [...new Set(open.filter(r => !isCb(r) && r.upDay).map(r => r.upDay))].sort().reverse();
+  if (QDAY !== 'all' && QDAY !== TODAY && !listDays.includes(QDAY)) QDAY = TODAY;
+  const PRK = {high: 0, med: 1, low: 2};
+  const dayRows = open.filter(r => !isCb(r) && (QDAY === 'all' || (r.upDay || TODAY) === QDAY)).sort((a, b) => PRK[a.pri] - PRK[b.pri]);
+  const cbRows = open.filter(isCb).sort((a, b) => (b.late ? 1 : 0) - (a.late ? 1 : 0) || (a.fu && a.fu.time ? 0 : 1) - (b.fu && b.fu.time ? 0 : 1) || (a.fu && b.fu && a.fu.time && b.fu.time ? Date.parse('2000/1/1 ' + a.fu.time) - Date.parse('2000/1/1 ' + b.fu.time) : 0) || PRK[a.pri] - PRK[b.pri]);
+  const pendRows = QDAY === 'all' ? [] : open.filter(r => !isCb(r) && r.upDay && r.upDay < QDAY).sort((a, b) => a.upDay < b.upDay ? -1 : a.upDay > b.upDay ? 1 : PRK[a.pri] - PRK[b.pri])
+    .map(r => Object.assign({}, r, {pend: true, status: 'Pending', sub: 'Due since ' + fmt(r.upDay) + (r.sub ? ' · ' + r.sub : '')}));
+  const dayLbl = d => d === 'all' ? 'All days' : d === TODAY ? 'Today' : d === addDays(TODAY, -1) ? 'Yesterday' : wkd(d) + ' ' + fmt(d);
+  const SECS = QTAB === 'done' ? [['', Q.filter(r => r.st === 'done')]] : QTAB === 'callback' ? [['', cbRows]]
+    : QTAB === 'list' ? [[QDAY === 'all' ? 'Call lists · all days' : 'Call list · ' + dayLbl(QDAY), dayRows], ['Pending calls · from earlier lists, call after the list above', pendRows]]
+    : [[QDAY === 'all' ? 'Call lists · all days' : 'Call list · ' + dayLbl(QDAY), dayRows], ['Callbacks', cbRows], ['Pending calls · from earlier lists, call last', pendRows]];
+  const showQ = SECS.flatMap(x => x[1]);
+  if (!QSEL || !Q.some(r => r.f.id === QSEL)) QSEL = (showQ[0] || open[0] || Q[0] || {f: {}}).f.id;
   const sel = Q.find(r => r.f.id === QSEL);
   const PRL = {high: 'High priority', med: 'Medium priority', low: 'Low priority'};
-  const stCls = r => r.st === 'done' ? 'done' : r.st === 'callback' ? (r.late ? 'overdue' : 'callback') : 'upl';
+  const stCls = r => r.pend ? 'pending' : r.st === 'done' ? 'done' : r.st === 'callback' ? (r.late ? 'overdue' : 'callback') : 'upl';
   const qrow = r => { const f = r.f, x = r.fu, isOpen = x && OPEN_FORM && OPEN_FORM.id === x.id;
     return `<tr class="qrow${f.id === QSEL ? ' qsel' : ''}" data-act="qsel" data-id="${f.id}" tabindex="0" aria-selected="${f.id === QSEL}"><td><div class="qf"><span class="pri ${r.pri}" title="${PRL[r.pri]}" aria-label="${PRL[r.pri]}"></span><div class="qfn"><span class="qn">${esc(f.short)}</span><div class="rm num">${maskPh(f.phone)}</div></div></div></td>
      <td>${esc(f.village)}<div class="rm">${esc(f.district)}</div></td>
@@ -1611,7 +1634,9 @@ function vToday() {
    ${QK ? tileList(QK, {ms, cbs}) : ''}</section>
   <div class="qcols"><section class="card qc qmain"><div class="qch qqh"><div><h2>Call queue</h2><div class="rm">Farmers from your call lists and your callbacks. Tap a farmer to open the call brief.</div></div>
      <div class="qtabs" role="tablist">${TABS.map(([k, l, c]) => `<button class="qtb" role="tab" type="button" data-act="qtab" data-k="${k}" aria-selected="${QTAB === k}">${l} · ${c}</button>`).join('')}</div></div>
-    ${showQ.length ? `<div class="tw2"><table class="qt"><thead><tr><th>Farmer</th><th>Village</th><th>Crop · stage</th><th>Why call</th><th>Last contact</th><th>Status</th><th class="n">Action</th></tr></thead><tbody>${showQ.map(qrow).join('')}</tbody></table></div>` : `<p class="empty">${QTAB === 'done' ? 'No calls logged yet today.' : 'Nobody in this list right now.'}</p>`}
+    ${QTAB !== 'done' && QTAB !== 'callback' ? `<div class="qdays" role="group" aria-label="Call list day"><span class="sl">List day</span>${[TODAY, ...listDays.filter(d => d !== TODAY), 'all'].map(d => { const n = d === 'all' ? open.filter(r => !isCb(r)).length : open.filter(r => !isCb(r) && (r.upDay || TODAY) === d).length;
+       return `<button type="button" class="qdb" data-act="qday" data-k="${d}" aria-pressed="${QDAY === d}">${esc(dayLbl(d))} <b>${n}</b></button>` }).join('')}</div>` : ''}
+    ${showQ.length ? `<div class="tw2"><table class="qt"><thead><tr><th>Farmer</th><th>Village</th><th>Crop · stage</th><th>Why call</th><th>Last contact</th><th>Status</th><th class="n">Action</th></tr></thead><tbody>${SECS.map(([h, L]) => (h && (L.length || /^Call list/.test(h)) ? `<tr class="qsec"><td colspan="7"><b>${esc(h.split(' · ')[0])}</b>${h.includes(' · ') ? ' · ' + esc(h.split(' · ').slice(1).join(' · ')) : ''} <span class="num">${L.length}</span></td></tr>` + (L.length ? '' : `<tr class="qsec0"><td colspan="7">No farmers from a list uploaded ${QDAY === TODAY ? 'today' : 'on this day'}.</td></tr>`) : '') + L.map(qrow).join('')).join('')}</tbody></table></div>` : `<p class="empty">${QTAB === 'done' ? 'No calls logged yet today.' : 'Nobody in this list right now.'}</p>`}
     <div class="qfoot"><span class="rm">Showing ${showQ.length} farmers · priority <span class="pri high"></span> High <span class="pri med"></span> Medium <span class="pri low"></span> Low</span><button class="lk" data-go="farmers">View all ${F.length} assigned farmers →</button></div></section>
    <aside class="qside2">
     <section class="card qc cb">${briefHtml}</section>
@@ -2479,7 +2504,7 @@ async function addUpload() {
     return;
   }
   S.uploads.push(entry);
-  save(); UPL = null; renderUpload(); QTAB = 'list'; QK = null; QSEL = rows[0] ? rows[0].fid : QSEL;
+  save(); UPL = null; renderUpload(); QTAB = 'list'; QDAY = TODAY; QK = null; QSEL = rows[0] ? rows[0].fid : QSEL;
   toast(rows.length + ' farmers added to the call queue'); go('today');
 }
 /* add one new farmer by hand: basic details, and crop details if the farmer knows them (otherwise filled later on the profile) */
@@ -2734,6 +2759,7 @@ document.addEventListener('click', ev => {
     else if (k === 'pop') { FPOP = 'ok'; return go('farmers') } else if (k === 'call') { MY.tab = 'overview' }
     return rerender() }
   if (a === 'qtab') { QTAB = t.dataset.k; OPEN_FORM = null; return rerender() }
+  if (a === 'qday') { QDAY = t.dataset.k; QSEL = null; OPEN_FORM = null; return rerender() }
   if (a === 'qtab-overdue' || a === 'qtab-callback') { QTAB = a.slice(5); return rerender() }
   if (a === 'afopen') return afOpen();
   if (a === 'afclose') { AF = null; return renderAF() }
