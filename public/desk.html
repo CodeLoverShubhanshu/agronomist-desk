@@ -985,6 +985,10 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 .qt tr.qsec td .num{display:inline-block;margin-left:4px;border-radius:999px;padding:0 7px;background:#E9EFEC;font-size:12px;font-weight:600;color:var(--ink)}
 .qt tr.qsec0 td{color:var(--muted);font-size:13.5px;padding:10px 8px}
 .qs.pending{background:#F3ECE2;color:#7A5320}
+.cropsrch{grid-column:1/-1}.cropsrch input{width:100%}
+.cropres{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
+.crpick{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:14.5px;font-weight:500;color:var(--ink);cursor:pointer}
+.crpick.first{border-color:var(--green);background:var(--mint);color:var(--deep);font-weight:600}.crpick:hover{border-color:var(--green)}.crpick:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1291,6 +1295,32 @@ const sold = p => PR[p] ? !!PR[p].gk : false;
 /* A farmer gets a POP plan only when crop, variety and sowing date are known and the crop is in the POP data.
    Details filled on a call (S.prof) override the Lens record. */
 const POPCROPS = Object.keys(D.P).sort();
+/* crop search: English name, Hindi name, or the Hindi word typed in English letters */
+const CROP_ALIAS = {gehun: 'wheat', gehu: 'wheat', gehoon: 'wheat', aloo: 'potato', alu: 'potato', sarson: 'mustard', sarso: 'mustard', rai: 'mustard', dhan: 'paddy', dhaan: 'paddy', chawal: 'paddy', rice: 'paddy',
+  ganna: 'sugarcane', ikh: 'sugarcane', makka: 'maize', makki: 'maize', corn: 'maize', arhar: 'tur', toor: 'tur', 'pigeon pea': 'tur', masoor: 'lentil', masur: 'lentil', matar: 'pea', mattar: 'pea', pyaz: 'onion', pyaj: 'onion', kanda: 'onion',
+  lahsun: 'garlic', lehsun: 'garlic', tamatar: 'tomato', mirch: 'chilli', mirchi: 'chilli', chili: 'chilli', baingan: 'brinjal', bengan: 'brinjal', eggplant: 'brinjal', gobhi: 'cauliflower', gobi: 'cauliflower', 'patta gobhi': 'cabbage', bandgobhi: 'cabbage',
+  bhindi: 'okra', 'lady finger': 'okra', kela: 'banana', aam: 'mango', kapas: 'cotton', moong: 'green gram', mung: 'green gram', urad: 'black gram', udad: 'black gram', til: 'sesame', moongfali: 'groundnut', mungfali: 'groundnut', peanut: 'groundnut',
+  haldi: 'turmeric', adrak: 'ginger', bajra: 'pearl millet', jowar: 'great millet', sorghum: 'great millet', jwar: 'great millet', mentha: 'peppermint', pudina: 'peppermint', mint: 'peppermint', dhaniya: 'coriander', dhania: 'coriander', jeera: 'cumin', jira: 'cumin',
+  makhana: 'foxnut', kheera: 'cucumber', khira: 'cucumber', karela: 'bitter gourd', lauki: 'bottle gourd', ghiya: 'bottle gourd', kaddu: 'pumpkin', mooli: 'radish', muli: 'radish', gajar: 'carrot', tarbooj: 'watermelon', tarbuj: 'watermelon', kharbooja: 'muskmelon', kharbuja: 'muskmelon',
+  parwal: 'pointed gourd', torai: 'sponge gourd', tori: 'sponge gourd', gilki: 'sponge gourd', seb: 'apple', soya: 'soybean', beans: 'beans', sem: 'beans'};
+function cropFind(q) {
+  q = String(q || '').trim().toLowerCase(); if (!q) return [];
+  const al = Object.entries(CROP_ALIAS).filter(([a]) => a.startsWith(q) || (q.length > 2 && q.startsWith(a)) || (q.length > 3 && a.includes(q))).map(([, en]) => en), exact = CROP_ALIAS[q];
+  const score = k => { const lab = D.P[k].crop.toLowerCase(), key = k.toLowerCase();
+    if (key.startsWith(q) || lab.startsWith(q) || (exact && (key.includes(exact) || lab.includes(exact)))) return 0;
+    if (al.some(en => key.includes(en) || lab.includes(en))) return 1;
+    if (lab.split(/[\s()]+/).some(w => w && w.startsWith(q))) return 2;
+    if (lab.includes(q) || key.includes(q)) return 3; return 9 };
+  return POPCROPS.map(k => [k, score(k)]).filter(x => x[1] < 9).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(x => x[0]);
+}
+function cropSearchShow() {
+  const i = $('pf-cropq'), box = $('pf-cropres'); if (!i || !box) return;
+  const q = i.value.trim(), L = cropFind(q);
+  box.hidden = !q;
+  box.innerHTML = !q ? '' : L.length ? L.slice(0, 12).map((k, n) => `<button type="button" role="option" class="crpick${n === 0 ? ' first' : ''}" data-act="pfcroppick" data-k="${esc(k)}">${esc(D.P[k].crop)}</button>`).join('') + (L.length > 12 ? `<span class="rm">+${L.length - 12} more, keep typing</span>` : '')
+    : `<span class="rm">No crop with a plan matches “${esc(q)}”.</span> <button type="button" class="crpick" data-act="pfcroppick" data-k="__other">Use “Other crop (no POP)”</button>`;
+}
+function cropPick(k) { const sel = $('pf-crop'); if (!sel) return; sel.value = k; sel.dispatchEvent(new Event('change', {bubbles: true})); setTimeout(() => { const v = $('pf-var') || $('pf-other'); if (v) v.focus() }, 0) }
 const isCalOnly = (ck, v) => !!(ck && v && D.P[ck].varieties[v] && !D.P[ck].varieties[v].das);
 function prepFarmer(f0) {
   const f = Object.assign({}, f0, OPS.FARM[f0.id]), p = S.prof[f0.id];
@@ -1863,6 +1893,7 @@ function profForm(f) {
     <li>बुवाई / रोपाई कब की थी? <span class="rm">When was it sown or transplanted?</span></li><li>कितने एकड़ में? <span class="rm">How many acres?</span></li></ol></div>`;
   return `<section class="pf${edit || add ? '' : ' need'}">${hd}${edit ? '' : say}
    <div class="form" style="margin-top:12px">
+    <div class="field cropsrch"><span>Find crop</span><input type="search" id="pf-cropq" placeholder="Type to search: wheat, गेहूं, aloo, sarson…" autocomplete="off" spellcheck="false" aria-controls="pf-cropres"><div class="cropres" id="pf-cropres" role="listbox" aria-label="Matching crops" hidden></div></div>
     <label class="field"><span>Crop</span><select id="pf-crop"><option value="">Choose crop</option>${POPCROPS.map(k => `<option value="${esc(k)}"${d.crop === k ? ' selected' : ''}>${esc(D.P[k].crop)}</option>`).join('')}<option value="__other"${d.crop === '__other' ? ' selected' : ''}>Other crop (no POP)</option></select></label>
     ${d.crop === '__other' ? `<label class="field"><span>Crop name</span><input type="text" id="pf-other" value="${esc(d.other)}" placeholder="e.g. Strawberry"></label>` : ''}
     ${ck ? `<label class="field"><span>Variety</span><select id="pf-var"><option value="">Choose variety</option>${vs.map(v => `<option${d.variety === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}<option value="__unsure"${d.variety === '__unsure' ? ' selected' : ''}>Not sure / other${d.asked && d.variety === '__unsure' ? ' (' + esc(d.asked) + ')' : ''}</option></select></label>` : ''}
@@ -2735,6 +2766,7 @@ document.addEventListener('click', ev => {
   if (a === 'stg') { STG = ['pre', 'post'].includes(t.dataset.k) ? t.dataset.k : +t.dataset.k; return rerender() }
   if (a === 'needlist') { FPOP = 'need'; return go('farmers') }
   if (a === 'fpop') { FPOP = t.dataset.k; return rerender() }
+  if (a === 'pfcroppick') return cropPick(t.dataset.k);
   if (a === 'cropmenu') { CROPMENU = CROPMENU === CUR ? null : CUR; return rerender() }
   if (a === 'cropsel') { const k = +t.dataset.k; S.cropSel[CUR] = k; CROPMENU = null; PD = null; OPEN_FORM = null; STG = null; FTAB = 'crop'; const nf = refit(CUR); save(); toast('Crop ' + (k + 1) + ': ' + nf.cropName + (nf.pop.ok ? ' · ' + nf.stageEn : ' · fill crop details')); return rerender() }
   if (a === 'cropadd') { CROPMENU = null; STG = null; PD = {id: CUR, add: true, crop: '', other: '', variety: '', mode: 'date', sow: '', stage: '', acres: '', asked: ''}; OPEN_FORM = {kind: 'prof', add: true}; FTAB = 'crop'; return rerender() }
@@ -2877,13 +2909,14 @@ document.addEventListener('change', ev => {
   if (t.id === 'fdist') { FDIST = t.value; return rerender() }
   if (t.id === 'fcrop') { FCROP = t.value; return rerender() }
 });
-document.addEventListener('input', ev => { if (ev.target.id === 'my-q') { MY.q = ev.target.value; MY.page = 0; const pos = ev.target.selectionStart; render(); const s = $('my-q'); s.focus(); try { s.setSelectionRange(pos, pos) } catch (e) {} return } if (ev.target.id === 'fsearch') { FSEARCH = ev.target.value; const pos = ev.target.selectionStart; render(); const s = $('fsearch'); s.focus(); try { s.setSelectionRange(pos, pos) } catch (e) {} } });
+document.addEventListener('input', ev => { if (ev.target.id === 'pf-cropq') return cropSearchShow(); if (ev.target.id === 'my-q') { MY.q = ev.target.value; MY.page = 0; const pos = ev.target.selectionStart; render(); const s = $('my-q'); s.focus(); try { s.setSelectionRange(pos, pos) } catch (e) {} return } if (ev.target.id === 'fsearch') { FSEARCH = ev.target.value; const pos = ev.target.selectionStart; render(); const s = $('fsearch'); s.focus(); try { s.setSelectionRange(pos, pos) } catch (e) {} } });
 $('scrim').addEventListener('click', () => { if (AF) { AF = null; return renderAF() } if (CV) { CV = null; return catalog() } if (RS) { RS = null; return renderResched() } if (OUT) return; if (UPL) { UPL = null; renderUpload() } drawer(false) });
 document.addEventListener('change', e => { if (OUT && e.target && e.target.id === 'o-topic' && OUT.kind === 'undecided') { readOutcomeForm(); renderOutcome() } });
 document.addEventListener('change', e => { if (AF && e.target && e.target.id === 'af-crop') { afRead(); AF.variety = ''; AF.err = ''; renderAF() } });
 document.addEventListener('input', e => { if (e.target && e.target.id === 'st-q') { SQ = e.target.value; const pos = e.target.selectionStart; rerender(); const i = $('st-q'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } } });
 $('fab').addEventListener('click', () => { CV = null; catalog(); drawer(true) });
 $('catp').addEventListener('input', e => { if (!CV) return; if (e.target.id === 'cat-q') { CV.q = e.target.value; const pos = e.target.selectionStart; catalog(); const i = $('cat-q'); i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } if (e.target.id === 'cat-gk') { CV.gk = e.target.checked; catalog() } });
+document.addEventListener('keydown', e => { if (e.target && e.target.id === 'pf-cropq' && e.key === 'Enter') { e.preventDefault(); const L = cropFind(e.target.value); if (L.length) cropPick(L[0]) } });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && (e.target.classList.contains('orow') || e.target.classList.contains('qrow'))) { e.preventDefault(); e.target.click(); return } if (e.key === 'Escape' && AF) { AF = null; renderAF(); return } if (e.key === 'Escape' && CV) { CV = null; catalog(); return } if (e.key === 'Escape' && RS) { RS = null; renderResched(); return } if (e.key === 'Escape' && UPL) { UPL = null; renderUpload(); return } if (e.key === 'Escape' && !$('drawer').hidden) drawer(false) });
 /* ================= report for the admin desk ================= */
 /* Built from this desk on every save, so the admin sees exactly what the agronomist sees (names, values, stages). */
