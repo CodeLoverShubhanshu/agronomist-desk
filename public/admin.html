@@ -243,8 +243,8 @@ function vCallbacks() {
   <section class="card" style="margin-top:14px">${filters('', 'callbacks')}
    ${L.length ? `<div class="tw"><table><thead><tr><th>Due</th><th>Agronomist</th><th>Farmer</th><th>Why</th></tr></thead><tbody>
    ${L.map(x => `<tr><td>${x.due < TODAY ? chip('hot', fmtD(x.due) + ' · overdue') : x.due === TODAY ? chip('warm', 'Today ' + (x.time || '')) : fmtD(x.due) + ' ' + esc(x.time)}</td><td>${esc(x.ag.name)}</td><td>${who(x.name, x.phone)}</td><td>${esc(x.why)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No open callbacks.</p>'}</section>
-  <section class="card" style="margin-top:18px"><h2>Undecided <small>back in the queue on the date shown</small></h2>
-   ${U.length ? `<div class="tw"><table><thead><tr><th>Back in queue</th><th>Agronomist</th><th>Farmer</th><th>Note</th><th>Undecided on</th></tr></thead><tbody>${U.map(u => `<tr><td>${fmtD(u.back)}</td><td>${esc(u.ag.name)}</td><td><b>${esc(u.name)}</b></td><td>${esc(u.note)}</td><td>${fmtD(u.at)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">None.</p>'}</section>`;
+  <section class="card" style="margin-top:18px"><h2>Undecided <small>back in the queue on the date shown · Not interested farmers do not come back</small></h2>
+   ${U.length ? `<div class="tw"><table><thead><tr><th>Back in queue</th><th>Agronomist</th><th>Farmer</th><th>Note</th><th>Undecided on</th></tr></thead><tbody>${U.map(u => `<tr><td>${u.ni ? chip('hot', 'Not interested') : fmtD(u.back)}</td><td>${esc(u.ag.name)}</td><td><b>${esc(u.name)}</b></td><td>${esc(u.note)}</td><td>${fmtD(u.at)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">None.</p>'}</section>`;
 }
 
 /* ---------- agronomists (logins) ---------- */

@@ -1478,7 +1478,7 @@ function tileList(k, ctx) {
   if (k === 'fu') { const L = allFup().filter(x => x.due <= TODAY);
     return head('Callbacks due', L.filter(x => x.due < TODAY).length + ' overdue · ' + L.filter(x => x.due === TODAY).length + ' due today', ['Due', 'Farmer', 'Why', 'Set by', ''],
       L.map(x => { const f = FM[x.f], late = x.due < TODAY; return `<tr class="qrow" data-act="qsel" data-id="${f.id}" tabindex="0"><td>${chip(late ? 'solid' : 'warm', late ? (-diff(TODAY, x.due)) + 'd overdue' : x.time || 'Today')}</td><td>${who(f)}</td><td>${esc(x.why)}</td><td class="rm">${esc(x.by)}</td><td class="n"><button class="btn ghost sm" data-act="resch" data-id="${x.id}">Reschedule</button> <button class="btn sm" data-act="qsel" data-id="${f.id}">Open brief</button></td></tr>` }), 'No follow-ups due. Well done.') }
-  if (k === 'und') { const L = S.undecided.filter(u => !u.closed && u.back > TODAY && FM[u.f]);
+  if (k === 'und') { const L = S.undecided.filter(u => !u.closed && !u.ni && u.back > TODAY && FM[u.f]);
     return head('Undecided farmers', 'Closed for now · they come back into the call queue on the date shown', ['Back in queue', 'Farmer', 'Note', 'Undecided on'],
       L.map(u => `<tr class="qrow" data-act="qsel" data-id="${u.f}" tabindex="0"><td>${chip('mute', fmt(u.back))}</td><td>${who(FM[u.f])}</td><td>${esc(u.note || u.why || '')}</td><td class="rm">${fmt(u.at)}</td></tr>`), 'No undecided farmers right now.') }
   if (k === 'cb') { const L = ctx.cbs;
@@ -1502,9 +1502,10 @@ function callQueue() {
   fu.filter(x => x.due <= TODAY).forEach(x => { const f = FM[x.f], late = x.due < TODAY, n = -diff(TODAY, x.due);
     put(f, {pri: late || x.time ? 'high' : 'med', st: 'callback', status: 'Callback', sub: x.time ? x.time : late ? n + (n === 1 ? ' day' : ' days') + ' overdue' : 'Today', late, purpose: x.why, fu: x}) });
   const calledSince = (fid, d) => S.log.some(l => l.f === fid && l.d >= d && l.d < TODAY && ['Call', 'Visit'].includes(l.ch) && l.out !== 'Not reachable');
-  S.undecided.filter(u => u.back <= TODAY && !u.closed).forEach(u => { const f = FM[u.f]; if (!f || calledSince(u.f, u.back)) return;
+  S.undecided.filter(u => !u.ni && u.back && u.back <= TODAY && !u.closed).forEach(u => { const f = FM[u.f]; if (!f || calledSince(u.f, u.back)) return;
     put(f, {pri: 'med', st: 'list', status: 'From list', up: 'Call loop', sub: 'Undecided on ' + fmt(u.at), purpose: 'Undecided last time' + (u.note ? ': ' + u.note : '') + '. Ask again.'}) });
-  S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || calledSince(x.fid, u.at.slice(0, 10))) return;
+  const notInt = new Set(S.undecided.filter(u => u.ni && !u.closed).map(u => u.f)); /* Not interested: never back in the queue, also not from a later list */
+  S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || notInt.has(x.fid) || calledSince(x.fid, u.at.slice(0, 10))) return;
     const ex = rows.get(f.id); if (ex) { if (ex.st !== 'done') { ex.up = ex.up || u.name; if (x.pri === 'high') ex.pri = 'high' } return }
     put(f, {pri: x.pri || 'med', st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
   const last = f => { const L = logsOf(f.id)[0], H = histOf(f)[0], d = [L && L.d, H && H.date].filter(Boolean).sort().pop(); return d ? (d === TODAY ? 'Today' : diff(d, TODAY) === 1 ? 'Yesterday' : diff(d, TODAY) + ' days ago') : 'New farmer' };
@@ -1630,7 +1631,7 @@ function vToday() {
     <div class="qbar" role="img" aria-label="${con} connected, ${nc} not connected, ${left} remaining of ${T}"><i style="width:${pct(con)}%"></i><i class="nc" style="width:${pct(nc)}%"></i></div>
     <div class="qkeys"><span><i class="k cur"></i>Connected ${con}</span><span><i class="k nc"></i>Not connected ${nc}</span><span><i class="k future"></i>Remaining ${left}</span></div></div>
    <div class="qks5">${kt('Connected', con, (done ? Math.round(con / done * 100) : 0) + '% connect rate', '', 'con')}${kt('Pending calls', open.length, open.filter(r => r.pri === 'high').length + ' high priority', 'w', 'pend')}${kt('Orders from calls', ordN, rupee(ordV) + ' booked', 'g', 'ord')}
-     ${kt('Callbacks due', fu.length, fu.filter(x => x.due < TODAY).length + ' overdue' + (cbs.length ? ' · next ' + cbs[0].time : ''), 'b', 'fu')}${kt('Undecided', S.undecided.filter(u => !u.closed && u.back > TODAY).length, 'back in the queue later', 'u', 'und')}${kt('Avg talk time', tc.avg ? mmss(tc.avg) : '–', 'Goal 3–6 min')}</div>
+     ${kt('Callbacks due', fu.length, fu.filter(x => x.due < TODAY).length + ' overdue' + (cbs.length ? ' · next ' + cbs[0].time : ''), 'b', 'fu')}${kt('Undecided', S.undecided.filter(u => !u.closed && !u.ni && u.back > TODAY).length, 'back in the queue later', 'u', 'und')}${kt('Avg talk time', tc.avg ? mmss(tc.avg) : '–', 'Goal 3–6 min')}</div>
    ${QK ? tileList(QK, {ms, cbs}) : ''}</section>
   <div class="qcols"><section class="card qc qmain"><div class="qch qqh"><div><h2>Call queue</h2><div class="rm">Farmers from your call lists and your callbacks. Tap a farmer to open the call brief.</div></div>
      <div class="qtabs" role="tablist">${TABS.map(([k, l, c]) => `<button class="qtb" role="tab" type="button" data-act="qtab" data-k="${k}" aria-selected="${QTAB === k}">${l} · ${c}</button>`).join('')}</div></div>
@@ -2548,10 +2549,10 @@ const upOf = id => S.uploads.filter(u => u.rows.some(x => x.fid === id));
    Callback -> your callbacks on the chosen date and time
    Undecided -> closed for now, back into the call queue after a few days (the call loop) */
 let OUT = null;
-const OKIND = [['order', 'Order placed', 'Goes to Orders · service team handles delivery'], ['callback', 'Callback', 'Comes back to you on the date you set'], ['undecided', 'Undecided', 'Closed now · back in the call queue later']];
+const OKIND = [['order', 'Order placed', 'Goes to Orders · service team handles delivery'], ['callback', 'Callback', 'Comes back to you on the date you set'], ['undecided', 'Undecided', 'Closed now · back in the call queue later (not if Not interested)']];
 const OREASONS = {
   callback: ['Not ordered yet', 'Wants time to think', 'Busy, asked to call later', 'Discussing with family', 'Waiting for the next crop stage', 'Waiting for money / payment', 'Wants price or product details', 'Product out of stock', 'Other'],
-  undecided: ['Price feels high', 'Buys from the local shop', 'Not sure the product will work', 'Will decide after seeing the crop', 'Money not available now', 'Needs family approval', 'Not interested right now', 'Other']};
+  undecided: ['Price feels high', 'Buys from the local shop', 'Not sure the product will work', 'Will decide after seeing the crop', 'Money not available now', 'Needs family approval', 'Not interested', 'Other']};
 /* callback calendar: how many callbacks are already set on each date */
 const cbLoad = () => { const m = {}; allFup().forEach(x => { m[x.due] = (m[x.due] || 0) + 1 }); return m };
 const cbOver = () => allFup().filter(x => x.due < TODAY).length;
@@ -2613,6 +2614,7 @@ function renderOutcome() {
     : o.kind === 'callback' ? `<div class="cbcal"><div>${calGrid(o.calM, o.cbDate, 'ocbday')}</div><div class="rsd"><span class="lbl2">Call back on</span><b class="cbsel">${fmt(o.cbDate)} · ${wkd(o.cbDate)}</b><span class="rsn ${loadCls(cbN + 1)}">${cbN} callback${cbN === 1 ? '' : 's'} already that day${o.cbDate === TODAY && cbOver() ? ' (' + cbOver() + ' overdue)' : ''}</span>
         ${cbTimes(o)}
         <label class="field"><span>What to talk about next time</span><input type="text" id="o-cbw" value="${esc(o.cbWhy)}"></label></div></div>`
+    : o.kind === 'undecided' && o.topic === 'Not interested' ? `<p class="note">Not interested: this farmer will <b>not</b> come back into the call queue. They are listed under Undecided as Not interested.</p>`
     : o.kind === 'undecided' ? `<div class="form"><label class="field"><span>Back in the call queue after</span><select id="o-back">${[2, 3, 5, 7, 14].map(n => `<option value="${n}"${+o.back === n ? ' selected' : ''}>${n} days (${fmt(addDays(TODAY, n))})</option>`).join('')}</select></label></div>` : '';
   const why = reasons.length ? `<div class="form"><label class="field"><span>${o.kind === 'callback' ? 'Reason for callback' : 'Why undecided'}</span><select id="o-topic">${reasons.map(t => `<option${t === o.topic ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
      <label class="field wide"><span>What was discussed</span><textarea id="o-note" placeholder="What the farmer said">${esc(o.note)}</textarea></label></div>` : '';
@@ -2637,10 +2639,12 @@ function saveOutcome() {
     note = (note ? note + ' · ' : '') + 'Order ' + oid; msg = 'Order ' + oid + ' sent to the service team'; S.basket[f.id] = {} }
   if (o.kind === 'callback') { S.newFup.push({id: 'N' + Date.now(), f: f.id, due: o.cbDate, time: o.cbTime || '', why: o.cbWhy || o.topic || 'Call back', reason: o.topic, by: 'Agronomist'});
     note = o.topic + (note ? ': ' + note : '') + ' · Callback ' + fmt(o.cbDate) + (o.cbTime ? ', ' + o.cbTime : ''); msg = 'Callback set for ' + (o.cbDate === TODAY ? 'today' : fmt(o.cbDate)) + (o.cbTime ? ', ' + o.cbTime : '') }
+  const notInt = o.kind === 'undecided' && o.topic === 'Not interested';
   if (o.kind === 'undecided') { S.undecided.forEach(u => { if (u.f === f.id) u.closed = true }); note = o.topic + (note ? ': ' + note : '');
-    S.undecided.push({f: f.id, at: TODAY, back: addDays(TODAY, o.back), note: note, why: o.purpose}); msg = 'Closed as undecided · back in the queue on ' + fmt(addDays(TODAY, o.back)) }
+    if (notInt) { S.undecided.push({f: f.id, at: TODAY, back: null, ni: true, note: note, why: o.purpose}); msg = 'Closed as not interested · will not come back into the call queue' }
+    else { S.undecided.push({f: f.id, at: TODAY, back: addDays(TODAY, o.back), note: note, why: o.purpose}); msg = 'Closed as undecided · back in the queue on ' + fmt(addDays(TODAY, o.back)) } }
   if (o.fu) S.fup[o.fu.id] = Object.assign(S.fup[o.fu.id] || {}, {status: 'done'});
-  addLog({f: f.id, ch: 'Call', topic: o.topic, out: {order: 'Ordered', callback: 'Callback', undecided: 'Undecided'}[o.kind], note: note || OKIND.find(k => k[0] === o.kind)[1], cbToday: o.kind === 'callback' && o.cbDate === TODAY});
+  addLog({f: f.id, ch: 'Call', topic: o.topic, out: notInt ? 'Not interested' : {order: 'Ordered', callback: 'Callback', undecided: 'Undecided'}[o.kind], note: note || OKIND.find(k => k[0] === o.kind)[1], cbToday: o.kind === 'callback' && o.cbDate === TODAY});
   S.rating[f.id] = Object.assign(S.rating[f.id] || {}, {interest: o.interest, trust: o.trust, by: 'R3', on: TODAY, confirmed: true});
   if (S.callOrder && S.callOrder.f === f.id) S.callOrder = null;
   save(); OUT = null; CALLING = null; renderOutcome();
@@ -2690,7 +2694,7 @@ function vAfter() {
   const fromCall = allOrders().filter(o => o.fromCall || S.newOrders.some(n => n.id === o.id)), samples = allOrders().filter(o => !fromCall.includes(o) && OPEN.includes(o.status));
   const ords = [...fromCall.sort((a, b) => b.date.localeCompare(a.date)), ...samples];
   const cbs = allFup().sort((a, b) => a.due.localeCompare(b.due) || (Date.parse('2000/1/1 ' + (a.time || '11:59 PM')) - Date.parse('2000/1/1 ' + (b.time || '11:59 PM'))));
-  const und = S.undecided.filter(u => !u.closed && FM[u.f]).sort((a, b) => a.back.localeCompare(b.back));
+  const und = S.undecided.filter(u => !u.closed && FM[u.f]).sort((a, b) => (a.ni - b.ni) || String(a.back).localeCompare(String(b.back)));
   const who = f => `<button class="lk qn" data-farmer="${f.id}">${esc(f.short)}</button><div class="rm">${esc(f.village)}, ${esc(f.district)} · ${esc(f.cropName)}</div>`;
   return `<div class="pagehead"><div><h2>After calls</h2><p>Every call ends in one of three places.</p></div></div>
   <div class="after3">
@@ -2699,8 +2703,8 @@ function vAfter() {
    <section class="card acol"><div class="ach c"><h3>Callbacks</h3><span>${cbs.length}</span></div><p class="rm">Yours to call back. Due ones are in today's call queue.</p>
     ${cbs.length ? `<ul class="alist">${cbs.map(x => { const f = FM[x.f]; if (!f) return ''; const late = x.due < TODAY;
       return `<li><div>${who(f)}<div class="rw">${esc(x.why)}</div></div><div class="arr"><span class="chip ${late ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${late ? relDue(x.due) : x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span><div class="acts" style="justify-content:flex-end">${x.due <= TODAY ? `<button class="btn sm" data-act="gocall" data-id="${f.id}">${CALLING === f.id ? 'On call' : 'Call'}</button>` : ''}<button class="btn ghost sm" data-act="resch" data-id="${x.id}">Reschedule</button></div></div></li>` }).join('')}</ul>` : '<p class="empty">No callbacks set.</p>'}</section>
-   <section class="card acol"><div class="ach u"><h3>Undecided</h3><span>${und.length}</span></div><p class="rm">Closed for now. They come back into the call queue on the date shown.</p>
-    ${und.length ? `<ul class="alist">${und.map(u => { const f = FM[u.f]; return `<li><div>${who(f)}<div class="rw">${esc(u.note || u.why || 'Undecided')}</div><div class="rm">Undecided on ${fmt(u.at)}</div></div><span class="chip ${u.back <= TODAY ? 'upl' : 'mute'}">${u.back <= TODAY ? 'In queue now' : 'Back ' + fmt(u.back)}</span></li>` }).join('')}</ul>` : '<p class="empty">No undecided farmers.</p>'}</section>
+   <section class="card acol"><div class="ach u"><h3>Undecided</h3><span>${und.length}</span></div><p class="rm">Closed for now. They come back into the call queue on the date shown. Not interested farmers do not come back.</p>
+    ${und.length ? `<ul class="alist">${und.map(u => { const f = FM[u.f]; return `<li><div>${who(f)}<div class="rw">${esc(u.note || u.why || 'Undecided')}</div><div class="rm">${u.ni ? 'Not interested' : 'Undecided'} on ${fmt(u.at)}</div></div>${u.ni ? '<span class="chip hot">Not interested</span>' : `<span class="chip ${u.back <= TODAY ? 'upl' : 'mute'}">${u.back <= TODAY ? 'In queue now' : 'Back ' + fmt(u.back)}</span>`}</li>` }).join('')}</ul>` : '<p class="empty">No undecided farmers.</p>'}</section>
   </div>`;
 }
 /* ================= events ================= */
@@ -2875,6 +2879,7 @@ document.addEventListener('change', ev => {
 });
 document.addEventListener('input', ev => { if (ev.target.id === 'my-q') { MY.q = ev.target.value; MY.page = 0; const pos = ev.target.selectionStart; render(); const s = $('my-q'); s.focus(); try { s.setSelectionRange(pos, pos) } catch (e) {} return } if (ev.target.id === 'fsearch') { FSEARCH = ev.target.value; const pos = ev.target.selectionStart; render(); const s = $('fsearch'); s.focus(); try { s.setSelectionRange(pos, pos) } catch (e) {} } });
 $('scrim').addEventListener('click', () => { if (AF) { AF = null; return renderAF() } if (CV) { CV = null; return catalog() } if (RS) { RS = null; return renderResched() } if (OUT) return; if (UPL) { UPL = null; renderUpload() } drawer(false) });
+document.addEventListener('change', e => { if (OUT && e.target && e.target.id === 'o-topic' && OUT.kind === 'undecided') { readOutcomeForm(); renderOutcome() } });
 document.addEventListener('change', e => { if (AF && e.target && e.target.id === 'af-crop') { afRead(); AF.variety = ''; AF.err = ''; renderAF() } });
 document.addEventListener('input', e => { if (e.target && e.target.id === 'st-q') { SQ = e.target.value; const pos = e.target.selectionStart; rerender(); const i = $('st-q'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } } });
 $('fab').addEventListener('click', () => { CV = null; catalog(); drawer(true) });
@@ -2896,7 +2901,7 @@ function deskReport() {
     orders,
     uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed})),
     followups: fu.map(x => ({f: x.f, name: nm(x.f), phone: ph(x.f), due: x.due, time: x.time || '', why: x.why || ''})),
-    undecided: S.undecided.filter(u => !u.closed).map(u => ({f: u.f, name: nm(u.f), at: u.at, back: u.back, note: u.note || ''})),
+    undecided: S.undecided.filter(u => !u.closed).map(u => ({f: u.f, name: nm(u.f), at: u.at, back: u.back, ni: !!u.ni, note: u.note || ''})),
     pops: Object.entries(S.prof).map(([id, p]) => ({f: id, name: nm(id), on: p.on || '', crop: p.crop, variety: p.variety || '', sow: p.sow || ''})),
     queue: {total: Q.length, pending: Q.filter(r => r.st !== 'done').length, done: Q.filter(r => r.st === 'done').length, high: Q.filter(r => r.st !== 'done' && r.pri === 'high').length,
       needPop: Q.filter(r => r.st !== 'done' && r.f && !r.f.pop.ok).length, callbacksDue: fu.filter(x => x.due <= TODAY).length, overdue: fu.filter(x => x.due < TODAY).length},
