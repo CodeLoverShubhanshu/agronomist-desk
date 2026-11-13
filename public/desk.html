@@ -2899,7 +2899,7 @@ function deskReport() {
       sow: f.sowISO || '', acres: f.acres, stage: f.stageEn, crops: f.cropList.map(cropLbl), cropNo: f.cropIdx + 1, pop: !!f.pop.ok, missing: f.pop.missing || [], list: f.list || '', filled: !!f.filled})),
     calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f)})),
     orders,
-    uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed})),
+    uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed, by: u.by && u.by.role === 'admin' ? 'admin' : 'agronomist', fids: u.rows.map(x => x.fid)})),
     followups: fu.map(x => ({f: x.f, name: nm(x.f), phone: ph(x.f), due: x.due, time: x.time || '', why: x.why || ''})),
     undecided: S.undecided.filter(u => !u.closed).map(u => ({f: u.f, name: nm(u.f), at: u.at, back: u.back, ni: !!u.ni, note: u.note || ''})),
     pops: Object.entries(S.prof).map(([id, p]) => ({f: id, name: nm(id), on: p.on || '', crop: p.crop, variety: p.variety || '', sow: p.sow || ''})),

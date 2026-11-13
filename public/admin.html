@@ -76,6 +76,14 @@ tbody tr:hover td{background:var(--soft)}
 .note{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}.note.hot{background:var(--hot-bg);border-color:#F2C6C8;color:var(--hot)}.note.ok{background:var(--mint);border-color:#C6E6D2;color:var(--deep)}
 details.danger{border-top:1px dashed var(--line);padding-top:10px}details.danger summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--hot)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:var(--deep);color:#fff;border-radius:10px;padding:9px 16px;z-index:60;font-size:15px;max-width:calc(100% - 32px)}
+.ldays{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin-top:10px}
+.ldb{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:0;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;cursor:pointer;text-align:left}
+.ldb b{font:600 15px var(--display);color:var(--deep)}.ldb span{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.ldb:hover{border-color:#B9C6BF}.ldb[aria-pressed="true"]{background:var(--deep);border-color:var(--deep)}.ldb[aria-pressed="true"] b{color:#fff}.ldb[aria-pressed="true"] span{color:#CFE3D6}
+.ldb:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.lbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:#E3E9E5}.lbar i{display:block;height:100%}
+.omix{display:flex;flex-wrap:wrap;gap:8px}.om{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13.5px}
+.om i{width:9px;height:9px;border-radius:50%}.om em{font-style:normal;color:var(--muted);font-size:12px}
 .load{padding:60px 16px;text-align:center;color:var(--muted)}
 .list{list-style:none;margin:0;padding:0}.list li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #ECF0ED;font-size:14px}.list li:first-child{border-top:0}
 @media (max-width:820px){.top{flex-direction:column;align-items:stretch}}
@@ -227,12 +235,70 @@ function vFarmers() {
 }
 
 /* ---------- call lists ---------- */
+/* call lists: pick an upload day → how the lists of that day went, across all agronomists */
+let LDAY = null;
+const isConn = c => c.out !== 'Not reachable';
+const isTalk = c => c.ch === 'Call' || c.ch === 'Visit';
+function listStats(a, list) {
+  const r = a.report || {}, D = localISO(list.at), F = new Set(list.fids || []);
+  const calls = (r.calls || []).filter(c => F.has(c.f) && isTalk(c) && c.d >= D);
+  const called = new Set(calls.map(c => c.f)), conn = new Set(calls.filter(isConn).map(c => c.f));
+  const ords = (r.orders || []).filter(o => F.has(o.f) && o.date >= D && !DEAD.includes(o.status)), ordF = new Set(ords.map(o => o.f));
+  const lastOut = {}; calls.slice().sort((x, y) => (x.d + (x.at || '')).localeCompare(y.d + (y.at || ''))).forEach(c => { lastOut[c.f] = c.out });
+  return {farmers: F.size, attempts: calls.length, called: called.size, conn: conn.size, nr: called.size - conn.size, pending: F.size - called.size,
+    orders: ords.length, ordFarmers: ordF.size, value: ords.reduce((t, o) => t + (o.value || 0), 0),
+    pops: (r.pops || []).filter(p => F.has(p.f) && p.on >= D).length,
+    cbs: (r.followups || []).filter(x => F.has(x.f)).length, und: (r.undecided || []).filter(x => F.has(x.f)).length, lastOut, fids: F};
+}
+const sumStats = L => { const o = {farmers: 0, attempts: 0, called: 0, conn: 0, nr: 0, pending: 0, orders: 0, ordFarmers: 0, value: 0, pops: 0, cbs: 0, und: 0, outs: {}};
+  L.forEach(s => { Object.keys(o).forEach(k => { if (k !== 'outs') o[k] += s[k] }); Object.values(s.lastOut).forEach(v => { o.outs[v] = (o.outs[v] || 0) + 1 }) }); return o };
+const pc = (a, b) => b ? Math.round(100 * a / b) + '%' : '–';
+function allLists() {
+  return pick().flatMap(a => (a.lists && a.lists.length ? a.lists : ((a.report && a.report.uploads) || []).map(u => Object.assign({fids: []}, u)))
+    .filter(u => !u.removed).map(u => ({a, u, day: localISO(u.at), s: listStats(a, u)})))
+    .filter(x => qMatch(x.u.name, x.a.name));
+}
 function vLists() {
-  const L = rows('uploads').filter(u => inPer(u.at) && qMatch(u.name, u.ag.name)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
-  return `${head('Call lists uploaded', 'Excel / CSV lists each agronomist uploaded · ' + perLabel())}
-  <section class="card" style="margin-top:14px">${filters('', 'lists')}
-   ${L.length ? `<div class="tw"><table><thead><tr><th>Uploaded</th><th>Agronomist</th><th>List</th><th class="n">Farmers</th><th class="n">Already theirs</th><th class="n">New</th><th class="n">Skipped</th><th></th></tr></thead><tbody>
-   ${L.map(u => `<tr><td>${fmtT(u.at)}</td><td>${esc(u.ag.name)}</td><td><b>${esc(u.name)}</b></td><td class="n num">${u.rows}</td><td class="n num">${(u.counts || {}).mine || 0}</td><td class="n num">${((u.counts || {}).new || 0) + ((u.counts || {}).lens || 0)}</td><td class="n num">${(u.counts || {}).skip || 0}</td><td>${u.removed ? chip('', 'Removed') : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No call lists uploaded in this period.</p>'}</section>`;
+  const ALL = allLists(), days = [...new Set(ALL.map(x => x.day))].sort().reverse();
+  if (!LDAY || (LDAY !== 'all' && !days.includes(LDAY))) LDAY = days[0] || 'all';
+  const L = ALL.filter(x => LDAY === 'all' || x.day === LDAY).sort((x, y) => String(y.u.at).localeCompare(String(x.u.at)));
+  const T = sumStats(L.map(x => x.s)), dayName = d => d === 'all' ? 'All days' : d === TODAY ? 'Today' : d === addDays(TODAY, -1) ? 'Yesterday' : new Date(d + 'T12:00:00').toLocaleDateString('en-IN', {weekday: 'short', day: 'numeric', month: 'short'});
+  const byAg = AGS().map(a => ({a, L: L.filter(x => x.a.id === a.id)})).filter(x => x.L.length).map(x => Object.assign(x, {s: sumStats(x.L.map(y => y.s))}));
+  const OUTC = {Ordered: 'var(--green)', 'Product recommended': '#3E8E5E', Resolved: '#7FB394', Callback: 'var(--blue)', 'Follow-up needed': 'var(--blue)', Undecided: '#D9A11E', 'Not interested': '#B9C6BF', 'Not reachable': 'var(--hot)'};
+  const outs = Object.entries(T.outs).sort((x, y) => y[1] - x[1]);
+  const bar = (s) => s.farmers ? `<div class="lbar" title="${s.conn} connected · ${s.nr} not reachable · ${s.pending} not called yet"><i style="width:${100 * s.conn / s.farmers}%;background:var(--green)"></i><i style="width:${100 * s.nr / s.farmers}%;background:#E8A15A"></i><i style="width:${100 * s.pending / s.farmers}%;background:#E3E9E5"></i></div>` : '';
+  return `<div class="head"><div><h1>Call lists</h1><p>Pick an upload day to see how that day's lists went across all agronomists. Figures follow each farmer from the day the list was uploaded.</p></div></div>
+  <section class="card" style="margin-top:14px">
+   <div class="filters" style="margin-top:0">${agSel()}<input type="search" id="q" placeholder="Search list or agronomist…" value="${esc(Q)}"><span class="sp"></span><button class="btn ghost" type="button" data-csv="lists">Download CSV</button></div>
+   ${days.length ? `<div class="ldays" role="group" aria-label="Upload day">${days.slice(0, 30).map(d => { const X = ALL.filter(x => x.day === d); return `<button type="button" class="ldb" data-lday="${d}" aria-pressed="${LDAY === d}"><b>${esc(dayName(d))}</b><span>${X.length} list${X.length === 1 ? '' : 's'} · ${X.reduce((t, x) => t + x.s.farmers, 0)} farmers</span></button>` }).join('')}<button type="button" class="ldb" data-lday="all" aria-pressed="${LDAY === 'all'}"><b>All days</b><span>${ALL.length} lists</span></button></div>` : ''}
+  </section>
+  ${L.length ? `<section class="card" style="margin-top:18px"><h2>${esc(dayName(LDAY))}${LDAY !== 'all' && LDAY !== TODAY && LDAY !== addDays(TODAY, -1) ? '' : LDAY === 'all' ? '' : ` <small>${esc(new Date(LDAY + 'T12:00:00').toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long'}))}</small>`} <small>${L.length} list${L.length === 1 ? '' : 's'} uploaded by ${byAg.length} agronomist${byAg.length === 1 ? '' : 's'}</small></h2>
+   <div class="kpis" style="margin-top:12px">
+    <div class="kpi"><span>Farmers in lists</span><b class="num">${T.farmers}</b><small>${L.length} list${L.length === 1 ? '' : 's'}</small></div>
+    <div class="kpi b"><span>Farmers called</span><b class="num">${T.called}</b><small>${pc(T.called, T.farmers)} of the list · ${T.attempts} call attempts</small></div>
+    <div class="kpi g"><span>Connected</span><b class="num">${T.conn}</b><small>${pc(T.conn, T.called)} of called · ${T.nr} not reachable</small></div>
+    <div class="kpi g"><span>Orders</span><b class="num">${T.orders}</b><small>conversion ${pc(T.ordFarmers, T.conn)} of connected</small></div>
+    <div class="kpi g"><span>Order value</span><b class="num">${rupee(T.value)}</b><small>${T.ordFarmers ? rupee(T.value / T.ordFarmers) + ' per ordering farmer' : 'no orders yet'}</small></div>
+    <div class="kpi v"><span>POPs filled</span><b class="num">${T.pops}</b><small>crop details completed on calls</small></div>
+    <div class="kpi w"><span>Not called yet</span><b class="num">${T.pending}</b><small>${pc(T.pending, T.farmers)} of the list still pending</small></div>
+    <div class="kpi b"><span>Callbacks open</span><b class="num">${T.cbs}</b><small>${T.und} undecided</small></div>
+   </div>
+   <div style="margin-top:16px">${bar(T)}<div class="lg"><span><i style="background:var(--green)"></i>Connected ${T.conn}</span><span><i style="background:#E8A15A"></i>Not reachable ${T.nr}</span><span><i style="background:#E3E9E5"></i>Not called yet ${T.pending}</span></div></div>
+   ${outs.length ? `<div style="margin-top:14px"><div class="rm" style="margin-bottom:6px">Latest call outcome of each farmer called</div><div class="omix">${outs.map(([o, n]) => `<span class="om"><i style="background:${OUTC[o] || '#9AA8A1'}"></i>${esc(o)} <b class="num">${n}</b><em class="num">${pc(n, T.called)}</em></span>`).join('')}</div></div>` : ''}
+  </section>
+  <section class="card" style="margin-top:18px"><h2>By agronomist <small>${esc(dayName(LDAY))}</small></h2>
+   <div class="tw"><table><thead><tr><th>Agronomist</th><th class="n">Lists</th><th class="n">Farmers</th><th class="n">Called</th><th class="n">Connected</th><th class="n">Not reachable</th><th class="n">Orders</th><th class="n">Value</th><th class="n">Conversion</th><th class="n">POPs</th><th class="n">Not called yet</th><th>Progress</th><th>Last saved</th></tr></thead><tbody>
+   ${byAg.sort((x, y) => y.s.value - x.s.value || y.s.called - x.s.called).map(({a, L: AL, s}) => `<tr><td><div class="who"><b>${esc(a.name)}</b><span>${esc(a.username)}</span></div></td><td class="n num">${AL.length}</td><td class="n num">${s.farmers}</td>
+     <td class="n num">${s.called}<div class="rm">${pc(s.called, s.farmers)}</div></td><td class="n num">${s.conn}<div class="rm">${pc(s.conn, s.called)}</div></td><td class="n num">${s.nr}</td>
+     <td class="n num"><b>${s.orders}</b></td><td class="n num">${rupee(s.value)}</td><td class="n num">${pc(s.ordFarmers, s.conn)}</td><td class="n num">${s.pops}</td>
+     <td class="n num">${s.pending ? chip(s.pending > s.farmers / 2 ? 'warm' : '', s.pending) : '0'}</td><td style="min-width:120px">${bar(s)}</td><td class="rm">${a.report ? ago(a.saved_at) : 'desk not opened'}</td></tr>`).join('')}
+   </tbody></table></div></section>
+  <section class="card" style="margin-top:18px"><h2>Lists <small>${esc(dayName(LDAY))}</small></h2>
+   <div class="tw"><table><thead><tr><th>Uploaded</th><th>Agronomist</th><th>List</th><th class="n">Farmers</th><th class="n">Called</th><th class="n">Connected</th><th class="n">Orders</th><th class="n">Value</th><th class="n">Not called yet</th><th>Progress</th></tr></thead><tbody>
+   ${L.map(({a, u, s}) => `<tr><td>${fmtT(u.at)}</td><td>${esc(a.name)}</td><td><b>${esc(u.name)}</b>${u.by === 'admin' ? ' ' + chip('blue', 'by admin') : ''}</td><td class="n num">${s.farmers}</td><td class="n num">${s.called}</td><td class="n num">${s.conn}</td><td class="n num">${s.orders}</td><td class="n num">${rupee(s.value)}</td><td class="n num">${s.pending}</td><td style="min-width:120px">${bar(s)}</td></tr>`).join('')}
+   </tbody></table></div>
+   <p class="rm" style="margin:10px 0 0">Calls, orders and outcomes come from each desk's last save. A farmer counts as called once any call or visit is logged on or after the list's upload day.</p></section>`
+  : `<section class="card" style="margin-top:18px"><p class="empty">${ALL.length ? 'No lists on this day.' : 'No call lists uploaded yet.'}</p></section>`}`;
 }
 
 /* ---------- callbacks ---------- */
@@ -286,7 +352,8 @@ function csv(kind) {
   if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.note]) }
   if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Discount %', 'Status', 'Needs approval', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.disc, o.status, o.approval ? 'yes' : '', o.urgent ? 'yes' : '']) }
   if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
-  if (kind === 'lists') { H = ['Uploaded', 'Agronomist', 'List', 'Farmers', 'Already theirs', 'New', 'Skipped']; R = rows('uploads').filter(u => inPer(u.at)).map(u => [u.at, u.ag.name, u.name, u.rows, (u.counts || {}).mine || 0, ((u.counts || {}).new || 0) + ((u.counts || {}).lens || 0), (u.counts || {}).skip || 0]) }
+  if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];
+    R = allLists().filter(x => LDAY === 'all' || !LDAY || x.day === LDAY).map(({a, u, s, day}) => [day, u.at, a.name, u.name, u.by || '', s.farmers, s.called, s.conn, s.nr, s.pending, s.orders, s.value, s.conn ? Math.round(100 * s.ordFarmers / s.conn) : '', s.pops, s.cbs]) }
   if (kind === 'callbacks') { H = ['Due', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Why']; R = rows('followups').map(x => [x.due, x.time, x.ag.name, x.name, x.phone, x.why]) }
   const blob = new Blob(['﻿' + [H, ...R].map(r => r.map(q).join(',')).join('\n')], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `gramik-${kind}-${TODAY}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove() }, 500);
@@ -313,6 +380,7 @@ document.addEventListener('click', async e => {
   const t = e.target.closest('button,[data-tab]'); if (!t) return;
   if (t.dataset.tab) { VIEW = t.dataset.tab; Q = ''; OUTF = ''; MSG = null; render(); window.scrollTo(0, 0); return }
   if (t.dataset.per) { PER = t.dataset.per; return render() }
+  if (t.dataset.lday) { LDAY = t.dataset.lday; return render() }
   if (t.dataset.csv) return csv(t.dataset.csv);
   if (t.hasAttribute('data-newu')) { NEWU = true; EDIT = null; MSG = null; return render() }
   if (t.hasAttribute('data-cancel')) { NEWU = false; EDIT = null; return render() }
