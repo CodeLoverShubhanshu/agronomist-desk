@@ -1029,7 +1029,7 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 .qmb:hover{border-color:var(--green);background:var(--mint)}.qmb:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .wxask{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 12px;align-items:end;margin-top:10px;padding:12px 14px;background:var(--warm-bg);border:1px solid #F3D6B6;border-radius:10px}
 .wxask>p,.wxask .acts{grid-column:1/-1}.wxask input{width:100%}
-.chip.prx{margin-left:6px;font-size:11.5px;font-weight:600;vertical-align:1px}.chip.prx.high{background:#FBE7DC;color:#B4400C}.chip.prx.med{background:#FBF1D6;color:#8A6410}.chip.prx.low{background:#EEF1EF;color:#5C6964}
+.chip.prx{font-size:11.5px;font-weight:600;vertical-align:1px}.chip.prx.high{background:#FBE7DC;color:#B4400C}.chip.prx.med{background:#FBF1D6;color:#8A6410}.chip.prx.low{background:#EEF1EF;color:#5C6964}
 .fnbtn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;border-radius:6px;text-align:left}
 .fnbtn svg{width:15px;height:15px;color:var(--muted);opacity:.55}.fnbtn:hover svg,.fnbtn:focus-visible svg{opacity:1;color:var(--green)}.fnbtn:hover{text-decoration:underline dotted;text-underline-offset:5px}.fnbtn:focus-visible{outline:2px solid var(--green);outline-offset:3px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -1598,7 +1598,7 @@ function qShow(h, L, qrow) {
   const key = QTAB + '|' + (h ? h.split(' · ')[0] : 'all'), open = !!QMORE[key];
   if (L.length <= QLIM) return L.map(qrow).join('');
   const vis = open ? L : L.slice(0, QLIM).concat(L.slice(QLIM).filter(r => r.f.id === QOPEN));
-  return vis.map(qrow).join('') + `<tr class="qmore"><td colspan="7"><button type="button" class="qmb" data-act="qmore" data-k="${esc(key)}" aria-expanded="${open}">${open ? 'Show fewer' : 'See ' + (L.length - vis.length) + ' more'}${h && !open ? ' in ' + esc(h.split(' · ')[0]) : ''}</button></td></tr>`;
+  return vis.map(qrow).join('') + `<tr class="qmore"><td colspan="8"><button type="button" class="qmb" data-act="qmore" data-k="${esc(key)}" aria-expanded="${open}">${open ? 'Show fewer' : 'See ' + (L.length - vis.length) + ' more'}${h && !open ? ' in ' + esc(h.split(' · ')[0]) : ''}</button></td></tr>`;
 }
 const CALLED = ['Resolved', 'Product recommended', 'Ordered', 'Follow-up needed', 'Not interested'];
 function maskPh(p) { p = String(p || ''); return p.length >= 10 ? '+91 ' + p.slice(0, 2) + '••• ••' + p.slice(-3) : p }
@@ -1670,9 +1670,11 @@ function notesBox(fid, compact) {
     <dl>${row('pb', 'Problem', n.problem)}${row('wd', 'Weather damage', n.wxd)}${row('fc', 'Future crop', n.future)}</dl></div>`;
 }
 const locDay = s => { const d = new Date(s); return isNaN(d) ? String(s || '').slice(0, 10) : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') };
+/* a list had a Priority column if any row kept its text, or (lists uploaded before the text was kept) any row is not the default level */
+const upHasPri = u => !!(u && u.rows && (u.hasPri || u.rows.some(x => x.priTxt) || u.rows.some(x => x.pri && x.pri !== 'med')));
 function callQueue() {
   const rows = new Map(), fu = allFup(), done = new Set();
-  const put = (f, r) => { if (!f || rows.has(f.id)) return; rows.set(f.id, Object.assign({f}, r)) };
+  const put = (f, r) => { if (!f) return; const ex = rows.get(f.id); if (ex) { if (r.priShow && !ex.priTxt && ex.st === 'list' && r.st === 'list') { ex.priShow = r.priShow; ex.priTxt = r.priTxt; ex.pri = r.pri } return } rows.set(f.id, Object.assign({f}, r)) };
   (OPS.DONE_TODAY || []).forEach(x => { const f = FM[x.f]; if (f) { done.add(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + x.talk, purpose: x.note, last: 'Today, ' + x.at}) } });
   S.log.filter(l => l.d === TODAY && ['Call', 'Visit'].includes(l.ch) && l.out !== 'Not reachable' && !(l.cbToday && allFup().some(x => x.f === l.f && x.due === TODAY))).forEach(l => { const f = FM[l.f]; if (f && !done.has(f.id)) { done.add(f.id); rows.delete(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + l.out, purpose: l.note, last: 'Today' + (l.at ? ', ' + l.at : '')}) } });
   fu.filter(x => x.due <= TODAY).forEach(x => { const f = FM[x.f], late = x.due < TODAY, n = -diff(TODAY, x.due);
@@ -1683,7 +1685,7 @@ function callQueue() {
   const notInt = new Set(S.undecided.filter(u => u.ni && !u.closed).map(u => u.f)); /* Not interested: never back in the queue, also not from a later list */
   S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || notInt.has(x.fid) || calledSince(x.fid, u.at.slice(0, 10))) return;
     const ex = rows.get(f.id); if (ex) { if (ex.st !== 'done') { ex.up = ex.up || u.name; if (x.pri === 'high') ex.pri = 'high' } return }
-    put(f, {pri: x.pri || 'med', priTxt: x.priTxt || '', st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || x.problem || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
+    put(f, {pri: x.pri || 'med', priTxt: x.priTxt || '', priShow: x.priTxt || (upHasPri(u) ? {high: 'High', med: 'Medium', low: 'Low'}[x.pri || 'med'] : ''), st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || x.problem || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
   const last = f => { const L = logsOf(f.id)[0], H = histOf(f)[0], d = [L && L.d, H && H.date].filter(Boolean).sort().pop(); return d ? (d === TODAY ? 'Today' : diff(d, TODAY) === 1 ? 'Yesterday' : diff(d, TODAY) + ' days ago') : 'New farmer' };
   const PR2 = {high: 0, med: 1, low: 2};
   return [...rows.values()].map(r => Object.assign(r, {last: r.last || last(r.f)}))
@@ -1765,13 +1767,14 @@ function vToday() {
   const PRL = {high: 'High priority', med: 'Medium priority', low: 'Low priority'};
   const stCls = r => r.pend ? 'pending' : r.st === 'done' ? 'done' : r.st === 'callback' ? (r.late ? 'overdue' : 'callback') : 'upl';
   const qrow = r => { const f = r.f, x = r.fu, isOpen = x && OPEN_FORM && OPEN_FORM.id === x.id;
-    return `<tr class="qrow${f.id === QSEL ? ' qsel' : ''}" data-act="qsel" data-id="${f.id}" tabindex="0" aria-selected="${f.id === QSEL}"><td><div class="qf"><span class="pri ${r.pri}" title="${PRL[r.pri]}" aria-label="${PRL[r.pri]}"></span><div class="qfn"><span class="qn">${esc(f.short)}</span>${r.priTxt ? ` <span class="chip prx ${r.pri}" title="Priority in the uploaded list: ${esc(r.priTxt)}">${{high: 'High', med: 'Medium', low: 'Low'}[r.pri]}${/^(high|medium|med|low|urgent)$/i.test(r.priTxt) ? '' : ' · ' + esc(r.priTxt)}</span>` : ''}<div class="rm num">${maskPh(f.phone)}</div></div></div></td>
+    return `<tr class="qrow${f.id === QSEL ? ' qsel' : ''}" data-act="qsel" data-id="${f.id}" tabindex="0" aria-selected="${f.id === QSEL}"><td><div class="qf"><span class="pri ${r.pri}" title="${PRL[r.pri]}" aria-label="${PRL[r.pri]}"></span><div class="qfn"><span class="qn">${esc(f.short)}</span><div class="rm num">${maskPh(f.phone)}</div></div></div></td>
+     <td>${r.priShow ? `<span class="chip prx ${r.pri}" title="Priority in the uploaded list">${esc(r.priShow)}</span>` : '<span class="rm">–</span>'}</td>
      <td>${esc(f.village)}<div class="rm">${esc(f.district)}</div></td>
      <td>${esc(f.cropName)}<div class="rm">${esc(f.b ? f.stageEn : f.pop.nocrop ? 'No POP' : 'Stage unknown')}</div></td>
      <td class="qp">${esc(r.purpose)}</td><td class="rm" style="white-space:nowrap">${esc(r.last)}</td>
      <td><span class="qs ${stCls(r)}">${esc(r.status)}</span>${r.sub ? `<div class="rm qsub2">${esc(r.sub)}</div>` : ''}</td>
      <td class="qa">${r.st === 'done' ? `<div class="acts" style="justify-content:flex-end"><button class="btn ghost sm" data-act="qsel" data-id="${f.id}">Notes</button><button class="btn ghost sm" data-act="fview" data-id="${f.id}">View profile</button></div>` : `<button class="btn sm" data-act="qopen" data-id="${f.id}" aria-label="${CALLING === f.id ? 'On call with' : 'Call'} ${esc(f.short)}">${CALLING === f.id ? 'On call' : 'Call'}</button>`}</td></tr>
-     ${isOpen ? `<tr class="qform"><td colspan="7">${fupForm(x)}</td></tr>` : ''}` };
+     ${isOpen ? `<tr class="qform"><td colspan="8">${fupForm(x)}</td></tr>` : ''}` };
   /* call brief */
   let briefHtml = '<p class="empty">Nobody left to call today.</p>';
   if (sel) { const f = sel.f, b = brief4(sel);
@@ -1814,7 +1817,7 @@ function vToday() {
      <div class="qtabs" role="tablist">${TABS.map(([k, l, c]) => `<button class="qtb" role="tab" type="button" data-act="qtab" data-k="${k}" aria-selected="${QTAB === k}">${l} · ${c}</button>`).join('')}</div></div>
     ${QTAB !== 'done' && QTAB !== 'callback' ? `<div class="qdays" role="group" aria-label="Call list day"><span class="sl">List day</span>${[TODAY, ...listDays.filter(d => d !== TODAY), 'all'].map(d => { const n = d === 'all' ? open.filter(r => !isCb(r)).length : open.filter(r => !isCb(r) && (r.upDay || TODAY) === d).length;
        return `<button type="button" class="qdb" data-act="qday" data-k="${d}" aria-pressed="${QDAY === d}">${esc(dayLbl(d))} <b>${n}</b></button>` }).join('')}</div>` : ''}
-    ${showQ.length ? `<div class="tw2"><table class="qt"><thead><tr><th>Farmer</th><th>Village</th><th>Crop · stage</th><th>Why call</th><th>Last contact</th><th>Status</th><th class="n">Action</th></tr></thead><tbody>${SECS.map(([h, L]) => (h && (L.length || /^Call list/.test(h)) ? `<tr class="qsec"><td colspan="7"><b>${esc(h.split(' · ')[0])}</b>${h.includes(' · ') ? ' · ' + esc(h.split(' · ').slice(1).join(' · ')) : ''} <span class="num">${L.length}</span></td></tr>` + (L.length ? '' : `<tr class="qsec0"><td colspan="7">No farmers from a list uploaded ${QDAY === TODAY ? 'today' : 'on this day'}.</td></tr>`) : '') + qShow(h, L, qrow)).join('')}</tbody></table></div>` : `<p class="empty">${QTAB === 'done' ? 'No calls logged yet today.' : 'Nobody in this list right now.'}</p>`}
+    ${showQ.length ? `<div class="tw2"><table class="qt"><thead><tr><th>Farmer</th><th>Priority</th><th>Village</th><th>Crop · stage</th><th>Why call</th><th>Last contact</th><th>Status</th><th class="n">Action</th></tr></thead><tbody>${SECS.map(([h, L]) => (h && (L.length || /^Call list/.test(h)) ? `<tr class="qsec"><td colspan="8"><b>${esc(h.split(' · ')[0])}</b>${h.includes(' · ') ? ' · ' + esc(h.split(' · ').slice(1).join(' · ')) : ''} <span class="num">${L.length}</span></td></tr>` + (L.length ? '' : `<tr class="qsec0"><td colspan="8">No farmers from a list uploaded ${QDAY === TODAY ? 'today' : 'on this day'}.</td></tr>`) : '') + qShow(h, L, qrow)).join('')}</tbody></table></div>` : `<p class="empty">${QTAB === 'done' ? 'No calls logged yet today.' : 'Nobody in this list right now.'}</p>`}
     <div class="qfoot"><span class="rm">Showing ${showQ.length} farmers · priority <span class="pri high"></span> High <span class="pri med"></span> Medium <span class="pri low"></span> Low</span><button class="lk" data-go="farmers">View all ${F.length} assigned farmers →</button></div></section>
    <aside class="qside2">
     <section class="card qc cb">${briefHtml}</section>
