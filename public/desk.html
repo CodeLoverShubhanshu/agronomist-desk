@@ -1024,6 +1024,9 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 #fview{position:fixed;z-index:44;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100% - 32px));max-height:calc(100% - 40px);overflow:auto;background:var(--panel);border-radius:16px;box-shadow:0 20px 60px rgba(20,35,28,.3)}
 .fvl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14.5px}.fvl li{padding:6px 0;border-top:1px solid #ECF0ED}.fvl li:first-child{border-top:0;padding-top:0}
 .fvb{margin-left:4px;font-size:13px}
+.qt tr.qmore td{padding:6px 8px 12px;border-top:1px dashed var(--line)}
+.qmb{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:600;color:var(--green);cursor:pointer}
+.qmb:hover{border-color:var(--green);background:var(--mint)}.qmb:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1530,7 +1533,15 @@ function renderPage() {
 
 /* ================= Today ================= */
 /* ================= Today: the daily call desk ================= */
-let QTAB = 'all', QOPEN = null, QSEL = null, QDAY = TODAY;
+let QTAB = 'all', QOPEN = null, QSEL = null, QDAY = TODAY, QMORE = {};
+/* each queue section shows its first 5 calls; "See more" opens the rest (a call whose form is open always stays visible) */
+const QLIM = 5;
+function qShow(h, L, qrow) {
+  const key = QTAB + '|' + (h ? h.split(' · ')[0] : 'all'), open = !!QMORE[key];
+  if (L.length <= QLIM) return L.map(qrow).join('');
+  const vis = open ? L : L.slice(0, QLIM).concat(L.slice(QLIM).filter(r => r.f.id === QOPEN));
+  return vis.map(qrow).join('') + `<tr class="qmore"><td colspan="7"><button type="button" class="qmb" data-act="qmore" data-k="${esc(key)}" aria-expanded="${open}">${open ? 'Show fewer' : 'See ' + (L.length - vis.length) + ' more'}${h && !open ? ' in ' + esc(h.split(' · ')[0]) : ''}</button></td></tr>`;
+}
 const CALLED = ['Resolved', 'Product recommended', 'Ordered', 'Follow-up needed', 'Not interested'];
 function maskPh(p) { p = String(p || ''); return p.length >= 10 ? '+91 ' + p.slice(0, 2) + '••• ••' + p.slice(-3) : p }
 /* the sample call day: before the shift starts (night, early morning) show the whole sample day so the demo is never empty */
@@ -1745,7 +1756,7 @@ function vToday() {
      <div class="qtabs" role="tablist">${TABS.map(([k, l, c]) => `<button class="qtb" role="tab" type="button" data-act="qtab" data-k="${k}" aria-selected="${QTAB === k}">${l} · ${c}</button>`).join('')}</div></div>
     ${QTAB !== 'done' && QTAB !== 'callback' ? `<div class="qdays" role="group" aria-label="Call list day"><span class="sl">List day</span>${[TODAY, ...listDays.filter(d => d !== TODAY), 'all'].map(d => { const n = d === 'all' ? open.filter(r => !isCb(r)).length : open.filter(r => !isCb(r) && (r.upDay || TODAY) === d).length;
        return `<button type="button" class="qdb" data-act="qday" data-k="${d}" aria-pressed="${QDAY === d}">${esc(dayLbl(d))} <b>${n}</b></button>` }).join('')}</div>` : ''}
-    ${showQ.length ? `<div class="tw2"><table class="qt"><thead><tr><th>Farmer</th><th>Village</th><th>Crop · stage</th><th>Why call</th><th>Last contact</th><th>Status</th><th class="n">Action</th></tr></thead><tbody>${SECS.map(([h, L]) => (h && (L.length || /^Call list/.test(h)) ? `<tr class="qsec"><td colspan="7"><b>${esc(h.split(' · ')[0])}</b>${h.includes(' · ') ? ' · ' + esc(h.split(' · ').slice(1).join(' · ')) : ''} <span class="num">${L.length}</span></td></tr>` + (L.length ? '' : `<tr class="qsec0"><td colspan="7">No farmers from a list uploaded ${QDAY === TODAY ? 'today' : 'on this day'}.</td></tr>`) : '') + L.map(qrow).join('')).join('')}</tbody></table></div>` : `<p class="empty">${QTAB === 'done' ? 'No calls logged yet today.' : 'Nobody in this list right now.'}</p>`}
+    ${showQ.length ? `<div class="tw2"><table class="qt"><thead><tr><th>Farmer</th><th>Village</th><th>Crop · stage</th><th>Why call</th><th>Last contact</th><th>Status</th><th class="n">Action</th></tr></thead><tbody>${SECS.map(([h, L]) => (h && (L.length || /^Call list/.test(h)) ? `<tr class="qsec"><td colspan="7"><b>${esc(h.split(' · ')[0])}</b>${h.includes(' · ') ? ' · ' + esc(h.split(' · ').slice(1).join(' · ')) : ''} <span class="num">${L.length}</span></td></tr>` + (L.length ? '' : `<tr class="qsec0"><td colspan="7">No farmers from a list uploaded ${QDAY === TODAY ? 'today' : 'on this day'}.</td></tr>`) : '') + qShow(h, L, qrow)).join('')}</tbody></table></div>` : `<p class="empty">${QTAB === 'done' ? 'No calls logged yet today.' : 'Nobody in this list right now.'}</p>`}
     <div class="qfoot"><span class="rm">Showing ${showQ.length} farmers · priority <span class="pri high"></span> High <span class="pri med"></span> Medium <span class="pri low"></span> Low</span><button class="lk" data-go="farmers">View all ${F.length} assigned farmers →</button></div></section>
    <aside class="qside2">
     <section class="card qc cb">${briefHtml}</section>
@@ -3015,6 +3026,7 @@ document.addEventListener('click', ev => {
     else if (k === 'pop') { FPOP = 'ok'; return go('farmers') } else if (k === 'call') { MY.tab = 'overview' }
     return rerender() }
   if (a === 'qtab') { QTAB = t.dataset.k; OPEN_FORM = null; return rerender() }
+  if (a === 'qmore') { QMORE[t.dataset.k] = !QMORE[t.dataset.k]; return rerender() }
   if (a === 'qday') { QDAY = t.dataset.k; QSEL = null; OPEN_FORM = null; return rerender() }
   if (a === 'qtab-overdue' || a === 'qtab-callback') { QTAB = a.slice(5); return rerender() }
   if (a === 'afopen') return afOpen();
