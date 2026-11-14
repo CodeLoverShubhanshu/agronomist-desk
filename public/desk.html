@@ -1090,6 +1090,8 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
       if (r.status === 413) throw new Error('too big');
       if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
       B.version = j.version; retryMs = 3000; lastOk = new Date(); stopped = false;
+      if (j.removedLists && B.state.uploads) { var chg = false; B.state.uploads.forEach(function (u) { if (!u.removed && j.removedLists.indexOf(u.id) >= 0) { u.removed = true; chg = true } });
+        if (chg && typeof rerender === 'function') { try { rerender(); if (typeof toast === 'function') toast('Your admin removed a call list from your queue') } catch (e) {} } }
       if (j.adminLists) { var nb = bar('', '<b>Your admin added a new call list to your desk.</b> <span class="sp"></span><button type="button" id="gdNewList">Load it</button>'); $('gdNewList').onclick = function () { flush().then(function () { location.reload() }) } }
       if (!dirty) { dropBackup(); status('ok', 'Saved ' + hhmm(lastOk)) } else status('pending', 'Saving…');
       var gb = $('gdbar'); if (gb && /gd-off|gd-conf/.test(gb.innerHTML)) gb.hidden = true;
@@ -1101,7 +1103,7 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
   }
   function conflict() {
     var el = bar('', '<b class="gd-conf">This desk was changed in another tab or on another device.</b> <span class="sp"></span><button type="button" id="gdLatest">Load the latest</button><button type="button" id="gdMine">Keep this tab’s version</button>');
-    $('gdLatest').onclick = function () { dropBackup(); location.reload() };
+    $('gdLatest').onclick = function () { try { localStorage.setItem(bkKey() + '_skip', '1') } catch (e) {} location.reload() };
     $('gdMine').onclick = function () { el.hidden = true; stopped = false; dirty = true; flush(true) };
   }
   B.save = function () {
@@ -1166,7 +1168,15 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
     // changes made on this device that never reached the server (offline, closed tab) come back here
     if (!B.readOnly) {
       try { var bk = JSON.parse(localStorage.getItem(bkKey()) || 'null');
-        if (bk && bk.state && bk.v === B.version) { st = bk.state; dirty = true; B.restored = true } else if (bk) dropBackup() } catch (e) {}
+        var skip = localStorage.getItem(bkKey() + '_skip'); localStorage.removeItem(bkKey() + '_skip');
+        /* work kept on this device is restored when it is the newest: same version as the server, or made after the server's last save
+           (e.g. calls completed while the desk could not save). Only "Load the latest" discards it. */
+        if (bk && bk.state && !skip && (bk.v === B.version || !j.updated_at || bk.at > Date.parse(j.updated_at))) {
+          if (bk.v !== B.version) { var have = {}; (bk.state.uploads || []).forEach(function (u) { have[u.id] = u }); var gone = st.adminRemoved || [];
+            (st.uploads || []).forEach(function (u) { if (!have[u.id] && u.by && u.by.role === 'admin') (bk.state.uploads = bk.state.uploads || []).push(u) });
+            (bk.state.uploads || []).forEach(function (u) { if (gone.indexOf(u.id) >= 0) u.removed = true }) }
+          st = bk.state; dirty = true; B.restored = true }
+        else if (bk) dropBackup() } catch (e) {}
     }
     B.state = st;
     // production: no built-in sample farmers, calls, orders or Lens records; every agronomist starts with an empty desk
@@ -1684,13 +1694,17 @@ function callQueue() {
   const put = (f, r) => { if (!f) return; const ex = rows.get(f.id); if (ex) { if (r.priShow && !ex.priTxt && ex.st === 'list' && r.st === 'list') { ex.priShow = r.priShow; ex.priTxt = r.priTxt; ex.pri = r.pri } return } rows.set(f.id, Object.assign({f}, r)) };
   (OPS.DONE_TODAY || []).forEach(x => { const f = FM[x.f]; if (f) { done.add(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + x.talk, purpose: x.note, last: 'Today, ' + x.at}) } });
   S.log.filter(l => l.d === TODAY && ['Call', 'Visit'].includes(l.ch) && l.out !== 'Not reachable' && !(l.cbToday && allFup().some(x => x.f === l.f && x.due === TODAY))).forEach(l => { const f = FM[l.f]; if (f && !done.has(f.id)) { done.add(f.id); rows.delete(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + l.out, purpose: l.note, last: 'Today' + (l.at ? ', ' + l.at : '')}) } });
+  /* Busy / not reachable today with the next call booked for a later day: the farmer leaves today's queue and comes back as a callback on that day */
+  const later = new Map(); fu.filter(x => x.due > TODAY).forEach(x => { if (!later.has(x.f) || x.due < later.get(x.f).due) later.set(x.f, x) });
+  S.log.filter(l => l.d === TODAY && ['Call', 'Visit'].includes(l.ch) && l.out === 'Not reachable' && later.has(l.f) && !fu.some(x => x.f === l.f && x.due <= TODAY)).forEach(l => { const f = FM[l.f], x = later.get(l.f);
+    if (f && !done.has(f.id)) { done.add(f.id); put(f, {pri: 'med', st: 'done', status: 'Call again ' + fmt(x.due) + (x.time ? ', ' + x.time : ''), purpose: l.note, last: 'Today' + (l.at ? ', ' + l.at : '')}) } });
   fu.filter(x => x.due <= TODAY).forEach(x => { const f = FM[x.f], late = x.due < TODAY, n = -diff(TODAY, x.due);
     put(f, {pri: late || x.time ? 'high' : 'med', st: 'callback', status: 'Callback', sub: x.time ? x.time : late ? n + (n === 1 ? ' day' : ' days') + ' overdue' : 'Today', late, purpose: x.why, fu: x}) });
   const calledSince = (fid, d) => S.log.some(l => l.f === fid && l.d >= d && l.d < TODAY && ['Call', 'Visit'].includes(l.ch) && l.out !== 'Not reachable');
-  S.undecided.filter(u => !u.ni && u.back && u.back <= TODAY && !u.closed).forEach(u => { const f = FM[u.f]; if (!f || calledSince(u.f, u.back)) return;
+  S.undecided.filter(u => !u.ni && u.back && u.back <= TODAY && !u.closed).forEach(u => { const f = FM[u.f]; if (!f || calledSince(u.f, u.back) || (later.has(u.f) && !rows.has(u.f))) return;
     put(f, {pri: 'med', st: 'list', status: 'From list', up: 'Call loop', sub: 'Undecided on ' + fmt(u.at), purpose: 'Undecided last time' + (u.note ? ': ' + u.note : '') + '. Ask again.'}) });
   const notInt = new Set(S.undecided.filter(u => u.ni && !u.closed).map(u => u.f)); /* Not interested: never back in the queue, also not from a later list */
-  S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || notInt.has(x.fid) || calledSince(x.fid, u.at.slice(0, 10))) return;
+  S.uploads.filter(u => !u.removed).forEach(u => u.rows.forEach(x => { const f = FM[x.fid]; if (!f || notInt.has(x.fid) || calledSince(x.fid, u.at.slice(0, 10)) || (later.has(x.fid) && !rows.has(x.fid))) return;
     const ex = rows.get(f.id); if (ex) { if (ex.st !== 'done') { ex.up = ex.up || u.name; if (x.pri === 'high') ex.pri = 'high' } return }
     put(f, {pri: x.pri || 'med', priTxt: x.priTxt || '', priShow: x.priTxt || (upHasPri(u) ? {high: 'High', med: 'Medium', low: 'Low'}[x.pri || 'med'] : ''), st: 'list', status: 'From list', up: u.name, upDay: locDay(u.at), sub: u.seeded ? '' : u.name, needPop: !f.pop.ok, purpose: x.reason || x.problem || (f.pop.ok ? 'From uploaded list: ' + u.name : 'Fill crop details on the call: ' + f.pop.missing.join(', '))}) }));
   const last = f => { const L = logsOf(f.id)[0], H = histOf(f)[0], d = [L && L.d, H && H.date].filter(Boolean).sort().pop(); return d ? (d === TODAY ? 'Today' : diff(d, TODAY) === 1 ? 'Yesterday' : diff(d, TODAY) + ' days ago') : 'New farmer' };

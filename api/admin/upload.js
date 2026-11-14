@@ -14,7 +14,10 @@ module.exports = route(async (req, res) => {
     const mark = col => `CASE WHEN jsonb_typeof(${col}->'uploads') = 'array' THEN jsonb_set(${col}, '{uploads}',
         COALESCE((SELECT jsonb_agg(CASE WHEN e->>'id' = $2 THEN e || '{"removed": true}'::jsonb ELSE e END) FROM jsonb_array_elements(${col}->'uploads') e), '[]'::jsonb)) ELSE ${col} END`;
     const { rows } = await query(
-      `UPDATE desk_state SET state = ${mark('state')}, report = ${mark('report')}, version = version + 1, updated_at = now()
+      // no version bump: the agronomist's open desk keeps saving; the removal is re-applied on each of their saves (state.adminRemoved)
+      `UPDATE desk_state SET state = jsonb_set(${mark('state')}, '{adminRemoved}',
+           (CASE WHEN jsonb_typeof(state->'adminRemoved') = 'array' THEN state->'adminRemoved' ELSE '[]'::jsonb END) || jsonb_build_array($2::text)),
+         report = ${mark('report')}, updated_at = now()
        WHERE user_id = $1 AND EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(state->'uploads') = 'array' THEN state->'uploads' ELSE '[]'::jsonb END) e WHERE e->>'id' = $2)
        RETURNING version, updated_at`, [uid, String(b.remove)]);
     if (!rows[0]) return send(res, 404, { error: 'That call list is not on this desk any more. Reload the page.' });
@@ -31,7 +34,7 @@ module.exports = route(async (req, res) => {
     `UPDATE desk_state SET
        state = jsonb_set(CASE WHEN jsonb_typeof(state) = 'object' THEN state ELSE '{}'::jsonb END, '{uploads}',
          (CASE WHEN jsonb_typeof(state->'uploads') = 'array' THEN state->'uploads' ELSE '[]'::jsonb END) || jsonb_build_array($2::jsonb)),
-       version = version + 1, updated_at = now()
+       updated_at = now()   -- no version bump: the agronomist's open desk keeps saving, and their saves keep this list
      WHERE user_id = $1 RETURNING version, updated_at`, [uid, JSON.stringify(entry)]);
   await audit(me.id, 'admin_upload', { user: uid, list: entry.name, farmers: entry.rows.length });
   send(res, 200, { version: rows[0].version, updated_at: rows[0].updated_at, added: entry.rows.length, owner: who[0].name });
