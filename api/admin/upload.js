@@ -3,12 +3,24 @@ const { requireUser, send, readBody, route } = require('../../lib/auth');
 
 // POST /api/admin/upload {user, upload} → adds one call list to an agronomist's desk.
 // The list is appended to that desk's saved uploads on the server, so nothing else in the desk is overwritten.
+// POST /api/admin/upload {user, remove: listId} → takes one call list out of that agronomist's call queue (marks it removed).
 module.exports = route(async (req, res) => {
   const me = await requireUser(req, res, 'admin'); if (!me) return;
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
   const b = await readBody(req), uid = Number(b.user), u = b.upload;
   const { rows: who } = await query(`SELECT id, name FROM users WHERE id = $1 AND role = 'agronomist'`, [uid]);
   if (!who[0]) return send(res, 404, { error: 'Agronomist not found.' });
+  if (b.remove) {
+    const mark = col => `CASE WHEN jsonb_typeof(${col}->'uploads') = 'array' THEN jsonb_set(${col}, '{uploads}',
+        COALESCE((SELECT jsonb_agg(CASE WHEN e->>'id' = $2 THEN e || '{"removed": true}'::jsonb ELSE e END) FROM jsonb_array_elements(${col}->'uploads') e), '[]'::jsonb)) ELSE ${col} END`;
+    const { rows } = await query(
+      `UPDATE desk_state SET state = ${mark('state')}, report = ${mark('report')}, version = version + 1, updated_at = now()
+       WHERE user_id = $1 AND EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(state->'uploads') = 'array' THEN state->'uploads' ELSE '[]'::jsonb END) e WHERE e->>'id' = $2)
+       RETURNING version, updated_at`, [uid, String(b.remove)]);
+    if (!rows[0]) return send(res, 404, { error: 'That call list is not on this desk any more. Reload the page.' });
+    await audit(me.id, 'admin_list_removed', { user: uid, list: String(b.remove) });
+    return send(res, 200, { version: rows[0].version, updated_at: rows[0].updated_at, removed: true, owner: who[0].name });
+  }
   if (!u || typeof u !== 'object' || !u.id || !Array.isArray(u.rows) || !Array.isArray(u.farmers) || !u.rows.length)
     return send(res, 400, { error: 'This call list has no farmers to add.' });
   if (u.rows.length > 5000) return send(res, 400, { error: 'This list is too long (more than 5000 rows). Split it into smaller files.' });

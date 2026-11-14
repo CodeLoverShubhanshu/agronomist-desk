@@ -1117,6 +1117,13 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
     if (!r || !r.ok) throw new Error(j.error || 'The list was not saved.');
     B.version = j.version; B.updated = j.updated_at; return j;
   };
+  /* admin view: removing a call list from the queue is saved to this agronomist's desk too */
+  B.adminRemoveList = async function (listId) {
+    var r = await fetch('/api/admin/upload', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({user: B.owner.id, remove: listId})}).catch(function () { return null });
+    var j = r ? await r.json().catch(function () { return {} }) : {error: 'Not connected. Check the internet and try again.'};
+    if (!r || !r.ok) throw new Error(j.error || 'The list was not removed.');
+    B.version = j.version; B.updated = j.updated_at; return j;
+  };
   window.addEventListener('pagehide', function () { if (dirty) { backup(); flush() } });
   document.addEventListener('visibilitychange', function () { if (document.hidden && dirty) flush() });
   window.addEventListener('beforeunload', function (e) { if ((dirty || inflight) && !B.readOnly) { e.preventDefault(); e.returnValue = '' } });
@@ -3110,7 +3117,9 @@ document.addEventListener('click', ev => {
   if (a === 'uptemplate') { const csv = templateCSV(); (async () => { let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null } catch (e) {}
       if (dl) { try { await dl.save({filename: 'gramik-call-list-template.csv', data: csv}); return } catch (e) { if (e && e.code === 'declined') return } } copy(csv); toast('Template copied. Paste it into Excel.') })(); return }
   if (a === 'upadd') { UPL.high = $('uphigh') && $('uphigh').checked; return addUpload() }
-  if (a === 'upremove') { const u = S.uploads.find(x => x.id === id); if (u) { u.removed = true; save(); toast('"' + u.name + '" removed from the call queue') } return rerender() }
+  if (a === 'upremove') { const u = S.uploads.find(x => x.id === id), B = window.__BOOT; if (!u) return rerender();
+    if (B.adminView) { t.disabled = true; B.adminRemoveList(u.id).then(() => { u.removed = true; toast('"' + u.name + '" removed from ' + B.owner.name + '’s call queue and from Call lists'); rerender() }).catch(e => { toast(e.message); rerender() }); return }
+    u.removed = true; save(); toast('"' + u.name + '" removed from the call queue'); return rerender() }
   if (a === 'upshow') { FUP2 = id; FPOP = ''; return rerender() }
   if (a === 'upshowall') { FUP2 = ''; return rerender() }
   if (a === 'qk') { QK = QK === t.dataset.k ? null : t.dataset.k; return rerender() }
