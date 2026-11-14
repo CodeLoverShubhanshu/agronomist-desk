@@ -3146,6 +3146,7 @@ document.addEventListener('change', ev => {
     if (!$('drawer').hidden) drawer(true); else rerender(); return }
   if (t.id === 'xdisc') { S.extraDisc = S.extraDisc || {}; S.extraDisc[CUR] = Math.max(0, +t.value || 0); save(); return drawer(true) }
   if (t.id && t.id.startsWith('pf-') && PD) { const k = {'pf-crop': 'crop', 'pf-var': 'variety', 'pf-sow': 'sow', 'pf-stage': 'stage', 'pf-acres': 'acres', 'pf-other': 'other', 'pf-vil': 'vil', 'pf-dist': 'dist', 'pf-pin': 'pin'}[t.id];
+    if (!k) return; /* the crop search box is not a form field: leaving it must not redraw the form (that swallowed clicks on the crop list) */
     PD[k] = t.value; if (k === 'crop') { PD.variety = ''; PD.stage = '' } if (k === 'variety') PD.stage = ''; return rerender() }
   if (t.id === 'my-pay' || t.id === 'my-src' || t.id === 'my-kind') { MY[t.id.slice(3)] = t.value; MY.page = 0; return rerender() }
   if (t.id === 'fdist') { FDIST = t.value; return rerender() }
