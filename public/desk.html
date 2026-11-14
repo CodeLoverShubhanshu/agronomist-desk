@@ -570,7 +570,7 @@ td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 <div class="app">
  <header class="top"><div class="brand"><b>Gramik Agronomist Desk</b><span class="dt" id="today"></span></div><nav class="rail" id="rail" aria-label="Desks"></nav><div class="acct" id="acct"></div></header>
  <main id="view"></main>
- <p class="sampleban">Your calls, orders, call lists and crop details are saved to the Gramik database under your login. Weather and dark-store stock are example data until the live feeds are connected.</p>
+ <p class="sampleban">Your calls, orders, call lists and crop details are saved to the Gramik database under your login. Weather is a live Open-Meteo forecast by the farmer's district (or pincode if there is no district). Dark-store stock is example data until the live feed is connected.</p>
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden aria-label="Products for this farmer"></aside>
@@ -1027,6 +1027,8 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 .qt tr.qmore td{padding:6px 8px 12px;border-top:1px dashed var(--line)}
 .qmb{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:600;color:var(--green);cursor:pointer}
 .qmb:hover{border-color:var(--green);background:var(--mint)}.qmb:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.wxask{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 12px;align-items:end;margin-top:10px;padding:12px 14px;background:var(--warm-bg);border:1px solid #F3D6B6;border-radius:10px}
+.wxask>p,.wxask .acts{grid-column:1/-1}.wxask input{width:100%}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1242,11 +1244,58 @@ function pinInfo(pin) {
   if (p) return {ok: true, pin, district: p[1], place: p[1] + ' district', exact: false};
   return {ok: false, pin, err: 'Pincode ' + pin + ' is outside the districts this desk covers (Lucknow, Barabanki, Fatehpur, Hardoi, Sitapur, Kannauj, Unnao, Lakhimpur Kheri, Gautam Buddh Nagar).'};
 }
-/* The one place to plug in a live feed (Lens backend calling IMD or Open-Meteo by pincode). Returns 7 days. */
-const WXSHIFT = {};
-/* the sample forecast is re-dated so day 1 is always today (until the live feed is connected) */
-function forecast(info) { if (!info || !info.ok || !OPS.WX[info.district]) return null; const k = info.district;
-  return WXSHIFT[k] || (WXSHIFT[k] = OPS.WX[k].map((d, i) => Object.assign({}, d, {d: addDays(TODAY, i)}))) }
+/* Weather location: the farmer's district if filled, otherwise the pincode; with neither, the weather card asks for one. */
+const blankLoc = v => v == null || /^[\s\-–—]*$/.test(String(v));
+function wxLoc(f) {
+  const dist = blankLoc(f.district) ? '' : String(f.district).trim(), pin = blankLoc(f.pin) ? '' : String(f.pin).trim(), vil = blankLoc(f.village) ? '' : String(f.village).trim();
+  if (dist) return {ok: true, by: 'district', district: dist, pin, place: vil && vil.toLowerCase() !== dist.toLowerCase() ? vil + ', ' + dist : dist};
+  if (/^\d{6}$/.test(pin)) { const pi = pinInfo(pin); return {ok: true, by: 'pin', pin, district: pi.ok ? pi.district : '', place: pi.ok ? pi.place : 'Pincode ' + pin} }
+  return {ok: false, need: true, district: '', pin, place: vil || 'Location not filled', err: pin ? 'Pincode ' + pin + ' is not 6 digits.' : 'Add the district or pincode to get the weather forecast.'};
+}
+/* Live 7-day forecast from Open-Meteo (free, no key): district or pincode → place → forecast. Kept 3 hours per place.
+   While it loads (or if the internet is down) the desk falls back to its example forecast for that district, marked "Sample". */
+const WXSHIFT = {}, WXLIVE = {}, WX_TTL = 3 * 3600e3;
+const wxKey = info => info.by === 'district' ? 'd:' + info.district.toLowerCase() : 'p:' + info.pin;
+const wxCode = c => c == null ? 1 : c <= 3 ? c : (c === 45 || c === 48) ? 45 : (c >= 71 && c <= 77) || c === 85 || c === 86 ? 3 : 61;
+function wxCacheGet(k) { try { const c = JSON.parse(localStorage.getItem('gd_wx_' + k) || 'null'); if (c && c.days && Date.now() - c.at < WX_TTL && c.days[0] && c.days[c.days.length - 1].d >= TODAY) { c.days.src = c.src; return {st: 'ok', days: c.days, at: c.at} } } catch (e) {} return null }
+function wxCacheSet(k, days) { try { localStorage.setItem('gd_wx_' + k, JSON.stringify({at: Date.now(), days, src: days.src})) } catch (e) {} }
+let WXDIRTY = false;
+function wxRedraw() { const a = document.activeElement; if (a && a.closest && a.closest('#view') && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) { WXDIRTY = true; return }
+  if (VIEW === 'farmer' || VIEW === 'today') rerender(); if (!$('drawer').hidden) drawer(true); if (typeof FVIEW !== 'undefined' && FVIEW) renderFView() }
+document.addEventListener('focusout', () => { if (WXDIRTY) setTimeout(() => { if (WXDIRTY) { WXDIRTY = false; wxRedraw() } }, 200) });
+async function wxFetch(info, k) {
+  WXLIVE[k] = {st: 'loading', at: Date.now()};
+  try {
+    const q = info.by === 'district' ? info.district : info.pin;
+    const gj = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&countryCode=IN&name=' + encodeURIComponent(q))).json();
+    const want = q.toLowerCase(), score = r => (info.by === 'pin' && (r.postcodes || []).includes(q) ? 0 : 5) + (String(r.name).toLowerCase() === want || String(r.admin2 || '').toLowerCase() === want ? 0 : 3)
+      + (/^(ADM2|PPLA2|PPLA)$/.test(r.feature_code || '') ? 0 : 1) + (r.admin1 === 'Uttar Pradesh' ? 0 : 2);
+    let R = (gj.results || []).slice().sort((a, b) => score(a) - score(b)), r = R[0];
+    if (!r && info.by === 'pin' && info.district) {   /* pincode not in the place search: use its district from the desk's pincode list */
+      const g2 = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&countryCode=IN&name=' + encodeURIComponent(info.district))).json();
+      R = (g2.results || []).slice().sort((a, b) => (a.admin1 === 'Uttar Pradesh' ? 0 : 1) - (b.admin1 === 'Uttar Pradesh' ? 0 : 1)); r = R[0] }
+    if (!r) throw new Error((info.by === 'district' ? 'District "' : 'Pincode ') + q + (info.by === 'district' ? '"' : '') + ' was not found');
+    const u = 'https://api.open-meteo.com/v1/forecast?latitude=' + r.latitude + '&longitude=' + r.longitude + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&hourly=relative_humidity_2m&timezone=Asia%2FKolkata&forecast_days=7';
+    const w = await (await fetch(u)).json(); if (!w.daily || !w.daily.time) throw new Error((w && w.reason) || 'No forecast returned');
+    const D = w.daily, H = w.hourly || {time: [], relative_humidity_2m: []};
+    const hum = d => { const v = H.time.map((t, i) => t.startsWith(d) ? H.relative_humidity_2m[i] : null).filter(x => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 60 };
+    const days = D.time.map((d, i) => ({d, max: Math.round(D.temperature_2m_max[i]), min: Math.round(D.temperature_2m_min[i]), rain: Math.round((D.precipitation_sum[i] || 0) * 10) / 10,
+      pop: Math.round(D.precipitation_probability_max ? D.precipitation_probability_max[i] || 0 : 0), hum: hum(d), wind: Math.round(D.wind_speed_10m_max[i] || 0), code: wxCode(D.weather_code[i])}));
+    days.src = {live: true, by: info.by, q, name: r.name + (r.admin2 && r.admin2 !== r.name ? ', ' + r.admin2 : '') + (r.admin1 ? ', ' + r.admin1 : '')};
+    WXLIVE[k] = {st: 'ok', days, at: Date.now()}; wxCacheSet(k, days);
+  } catch (e) { WXLIVE[k] = {st: 'err', at: Date.now(), err: (e && e.message) || 'Forecast not available'} }
+  wxRedraw();
+}
+function forecast(info) {
+  if (!info || !info.ok) return null;
+  const k = wxKey(info); let c = WXLIVE[k]; if (!c) { c = wxCacheGet(k); if (c) WXLIVE[k] = c }
+  if (c && c.st === 'ok') return c.days;
+  if (!c || (c.st === 'err' && Date.now() - c.at > 10 * 60e3)) wxFetch(info, k);
+  const sk = info.district && OPS.WX[info.district] ? info.district : null;   /* example forecast while the live one loads or fails */
+  if (!sk) return null;
+  const d = WXSHIFT[sk] || (WXSHIFT[sk] = OPS.WX[sk].map((x, i) => Object.assign({}, x, {d: addDays(TODAY, i)}))); d.src = {live: false, by: info.by}; return d;
+}
+const wxState = info => info && info.ok ? WXLIVE[wxKey(info)] || null : null;
 const WXT = {0: 'Clear', 1: 'Mostly sunny', 2: 'Partly cloudy', 3: 'Cloudy', 45: 'Haze / fog', 61: 'Light rain'};
 const WXH = {0: 'साफ़ मौसम', 1: 'धूप', 2: 'आंशिक बादल', 3: 'बादल', 45: 'धुंध / कोहरा', 61: 'हल्की बारिश'};
 function icon(code) {
@@ -1316,7 +1365,9 @@ function dayCards(days) {
      <div class="t">${d.max}°<span> / ${d.min}°</span></div><div class="tbar"><i style="left:${sc(d.min)}%;right:${(100 - sc(d.max)).toFixed(1)}%"></i></div>
      <div class="r">${d.pop}% rain${d.rain ? ' · ' + d.rain + ' mm' : ''}</div><div class="sp ${fl.spray ? 'y' : 'n'}">${fl.spray ? 'Spray OK' : fl.windy ? 'Windy' : 'Rain'}</div></div>` }).join('')}</div>`;
 }
-const wxSrc = days => `<div class="src">${SAMPLE} Example forecast for ${fmt(days[0].d)}–${fmt(days[days.length - 1].d)}. Connect a live feed by pincode (IMD or Open-Meteo through Lens) to replace it.</div>`;
+const wxSrc = days => days.src && days.src.live
+  ? `<div class="src">Live forecast from Open-Meteo for <b>${esc(days.src.name)}</b>, found by ${days.src.by === 'district' ? 'district' : 'pincode'} “${esc(days.src.q)}” · ${fmt(days[0].d)}–${fmt(days[days.length - 1].d)}.</div>`
+  : `<div class="src">${SAMPLE} Example forecast for ${fmt(days[0].d)}–${fmt(days[days.length - 1].d)} while the live forecast loads (it needs the internet).</div>`;
 
 /* ================= stores, prices, products ================= */
 const storeOf = f => OPS.STORE_OF[f.place.district] || OPS.STORE_OF[f.district] || 'LKO';
@@ -1368,7 +1419,7 @@ function prepFarmer(f0) {
   const extra = (S.crops[f0.id] || []); let sel = +S.cropSel[f0.id] || 0; if (sel > extra.length || sel < 0) sel = 0;
   f.cropList = [{crop: f.crop, variety: f.variety, sow: f.sow || (f.dss != null ? addDays(TODAY, -f.dss) : null), acres: f.acres}, ...extra]; f.cropIdx = sel;
   if (sel > 0) { const c = extra[sel - 1]; f.crop = c.crop; f.variety = c.variety; f.sow = c.sow; f.dss = null; if (c.acres) f.acres = c.acres; f.filled = c }
-  f.place = pinInfo(f.pin); if (!f.place.ok) f.place = Object.assign({}, f.place, {district: f.district || '–', place: f.village || f.district || 'Pincode not known'});
+  f.place = wxLoc(f);
   f.phone = f.phone || ''; f.village = f.village || '–'; f.district = f.district || f.place.district; f.pin = f.pin || '';
   f.short = title(f.name || 'Farmer'); f.orders = f.orders || 0; f.acres = f.acres || 0;
   f.ck = f.crop ? ENG.resolveCrop(f.crop) : null;
@@ -1931,13 +1982,20 @@ function recentLog(f) {
   return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · <b>' + esc(l.out) + '</b>' : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
 }
 function wxCard(f, info, days, w) {
+  if (!info.ok && !WXOPEN) WXOPEN = true;
   const t = days ? (days.find(d => d.d === TODAY) || days[0]) : null, risks = w ? w.lines.filter(l => l.k !== 'soil').length : 0;
-  const sum = days ? `<span class="wxs">${chip('mute', (t.d === TODAY ? 'Today ' : wkd(t.d) + ' ') + t.max + '° / ' + t.min + '° · ' + t.pop + '% rain')}${w.spray.length ? chip('ok', 'Spray on ' + w.spray.length + ' of ' + days.length + ' days') : chip('warm', 'No good spray day')}${risks ? chip('warm', risks + ' weather advice' + (risks > 1 ? 's' : '')) : chip('ok', 'No weather risk')}</span>` : `<span class="wxs">${chip('warm', 'No forecast')}</span>`;
-  return `<section class="card wxcard${WXOPEN ? ' open' : ''}"><div class="wxhead"><button type="button" class="wxtog" data-act="wxtog" aria-expanded="${WXOPEN}"><span class="wxt"><b>Weather and crop advice</b><small>${esc(info.place)} ${esc(f.pin)} · ${esc(f.b ? f.cropName + ', ' + f.stageEn.toLowerCase() : 'crop advice after crop details are filled')}</small></span>${WXOPEN ? '' : sum}<span class="wxc">${WXOPEN ? 'Hide' : 'Show'}<i aria-hidden="true">›</i></span></button>
+  const st = wxState(info), sum = !info.ok ? `<span class="wxs">${chip('warm', 'Add district or pincode')}</span>` : !days && st && st.st === 'loading' ? `<span class="wxs">${chip('mute', 'Loading forecast…')}</span>` : days ? `<span class="wxs">${chip('mute', (t.d === TODAY ? 'Today ' : wkd(t.d) + ' ') + t.max + '° / ' + t.min + '° · ' + t.pop + '% rain')}${w.spray.length ? chip('ok', 'Spray on ' + w.spray.length + ' of ' + days.length + ' days') : chip('warm', 'No good spray day')}${risks ? chip('warm', risks + ' weather advice' + (risks > 1 ? 's' : '')) : chip('ok', 'No weather risk')}</span>` : `<span class="wxs">${chip('warm', 'No forecast')}</span>`;
+  return `<section class="card wxcard${WXOPEN ? ' open' : ''}"><div class="wxhead"><button type="button" class="wxtog" data-act="wxtog" aria-expanded="${WXOPEN}"><span class="wxt"><b>Weather and crop advice</b><small>${info.ok ? (info.by === 'district' ? 'District: ' + esc(info.place) : 'Pincode ' + esc(info.pin) + (info.district ? ' · ' + esc(info.place) : '')) : 'Location not filled'} · ${esc(f.b ? f.cropName + ', ' + f.stageEn.toLowerCase() : 'crop advice after crop details are filled')}</small></span>${WXOPEN ? '' : sum}<span class="wxc">${WXOPEN ? 'Hide' : 'Show'}<i aria-hidden="true">›</i></span></button>
    ${days && WXOPEN ? `<button class="btn ghost sm" data-act="wxmsg" data-id="${f.id}">Copy Hindi advice for WhatsApp</button>` : ''}</div>
    ${!WXOPEN ? '' : days ? dayCards(days) + `<div class="sprayrow"><div><span class="sl">Spray on</span><div class="chips">${w.spray.length === days.length ? chip('ok', 'All 7 days') : w.spray.length ? w.spray.map(d => chip('ok', wkd(d.d) + ' ' + fmt(d.d))).join('') : chip('warm', 'No good spray day this week')}</div></div>
      ${w.nospray.length ? `<div><span class="sl">Avoid</span><div class="chips">${w.nospray.map(d => chip('warm', wkd(d.d) + ' ' + fmt(d.d) + ' · ' + why(d))).join('')}</div></div>` : ''}</div>
-   ${w.lines.length ? `<div class="advs">${w.lines.map(advCard).join('')}</div>` : '<p class="note" style="margin-top:10px">No weather risk for this crop in the next 7 days.</p>'}${wxSrc(days)}` : `<p class="note warm">${esc(info.err || 'No forecast for this pincode.')}</p>`}</section>`;
+   ${w.lines.length ? `<div class="advs">${w.lines.map(advCard).join('')}</div>` : '<p class="note" style="margin-top:10px">No weather risk for this crop in the next 7 days.</p>'}${wxSrc(days)}` : !info.ok ? wxAsk(f, info) : st && st.st === 'loading' ? '<p class="note">Loading the forecast…</p>' : `<p class="note warm">${esc((st && st.err) || 'No forecast for this place.')}. Check the district or pincode.</p>${wxAsk(f, info)}`}</section>`;
+}
+function wxAsk(f, info) {
+  return `<form class="wxask" id="wxaskf"><p style="margin:0"><b>${esc(info.err || 'Add the district or pincode to get the weather forecast.')}</b> The forecast uses the district first; if there is no district, the pincode.</p>
+   <label class="field"><span>District</span><input type="text" id="wx-dist" value="${esc(blankLoc(f.district) ? '' : f.district)}" placeholder="e.g. Barabanki" autocomplete="off"></label>
+   <label class="field"><span>or Pincode</span><input type="text" id="wx-pin" inputmode="numeric" maxlength="6" value="${esc(blankLoc(f.pin) ? '' : f.pin)}" placeholder="6 digits"></label>
+   <div class="acts"><button class="btn sm" type="submit">Get forecast</button></div></form>`;
 }
 /* order history placed on the crop's POP stages: what was bought in each stage vs what the POP asked for */
 function stageOf(f, date) { if (!f.b) return null; const s = ENG.stageFor(f.b.cropKey, f.b.variety.variety, f.sowISO, date); return s.status === 'before' ? -1 : (s.status === 'after' || s.idx == null) ? 99 : s.idx }
@@ -3159,6 +3217,11 @@ document.addEventListener('change', e => { if (AF && e.target && e.target.id ===
 document.addEventListener('input', e => { if (e.target && e.target.id === 'st-q') { SQ = e.target.value; const pos = e.target.selectionStart; rerender(); const i = $('st-q'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } } });
 $('fab').addEventListener('click', () => { CV = null; catalog(); drawer(true) });
 $('catp').addEventListener('input', e => { if (!CV) return; if (e.target.id === 'cat-q') { CV.q = e.target.value; const pos = e.target.selectionStart; catalog(); const i = $('cat-q'); i.focus(); try { i.setSelectionRange(pos, pos) } catch (er) {} } if (e.target.id === 'cat-gk') { CV.gk = e.target.checked; catalog() } });
+document.addEventListener('submit', e => { if (e.target.id !== 'wxaskf') return; e.preventDefault();
+  const f = FM[CUR], dist = ($('wx-dist').value || '').trim(), pin = ($('wx-pin').value || '').replace(/\D/g, '');
+  if (!dist && !pin) { toast('Type the district or the pincode'); return } if (pin && pin.length !== 6) { toast('Pincode needs 6 digits'); return }
+  const L = S.loc[CUR] || {}; S.loc[CUR] = {village: L.village != null ? L.village : (blankLoc(f.village) ? '' : f.village), district: dist || (L.district || ''), pin: pin || (L.pin || '')};
+  refit(CUR); save(); toast('Getting the forecast for ' + (dist ? dist : 'pincode ' + pin)); rerender() });
 document.addEventListener('submit', e => { if (e.target.id !== 'sowf') return; e.preventDefault();
   const f = FM[CUR], d = $('sow-d').value; if (!d) { toast('Pick the sowing date'); return }
   const cur = f.cropIdx > 0 ? S.crops[CUR][f.cropIdx - 1] : S.prof[CUR], old = f.sowISO;
@@ -3171,7 +3234,7 @@ document.addEventListener('submit', e => { if (e.target.id !== 'locf') return; e
   const f = FM[CUR], v = id => ($(id).value || '').trim(), pin = v('loc-pin').replace(/\D/g, '');
   if (pin && pin.length !== 6) { toast('Pincode needs 6 digits'); return }
   S.loc[CUR] = {village: v('loc-vil'), district: v('loc-dist'), pin}; LOCED = null; refit(CUR); save();
-  const pi = pin ? pinInfo(pin) : null; toast('Location saved' + (pin ? (pi && pi.ok ? ' · weather for ' + (pi.place || pin) : ' · pincode not in the weather list') : '')); rerender() });
+  const nf = FM[CUR]; toast('Location saved' + (nf.place.ok ? ' · weather by ' + (nf.place.by === 'district' ? 'district ' + nf.place.district : 'pincode ' + nf.place.pin) : ' · add district or pincode for weather')); rerender() });
 document.addEventListener('keydown', e => { if (e.target && e.target.id === 'pf-cropq' && e.key === 'Enter') { e.preventDefault(); const L = cropFind(e.target.value); if (L.length) cropPick(L[0]) }
   if (CROPDD && e.key === 'Escape') { CROPDD = false; rerender(); const b = $('pf-cropbtn'); if (b) b.focus() } });
 document.addEventListener('click', e => { if (CROPDD && !e.target.closest('.cropdd')) { CROPDD = false; const p = document.querySelector('.cddp'); if (p) p.remove(); const b = $('pf-cropbtn'); if (b) b.setAttribute('aria-expanded', 'false') } }, true);
