@@ -1431,8 +1431,13 @@ const PACKC = {};
 function packOf(p) { if (p in PACKC) return PACKC[p]; const CD = typeof CATD !== 'undefined' && CATD, id = CD && CD.link[p], C = id != null && CD.cat.find(c => c.id === id && !c.off), L = C ? C.pk.filter(k => k.sp > 1) : [];
   if (!L.length) return (PACKC[p] = null); const need = qtyOf(PR[p] && PR[p].dose), S2 = L.map(k => Object.assign({q: qtyOf(k.pk)}, k)).sort((a, b) => (a.q || 0) - (b.q || 0));
   return (PACKC[p] = (need && S2.find(k => k.q && k.q >= need)) || S2[S2.length - 1]) }
-const price = p => { const k = packOf(p); return k ? k.sp : OPS.PRICE[p] || 0 };
-const sold = p => PR[p] ? !!PR[p].gk : false;
+const price = p => { const k = packOf(p); return k ? k.sp : 0 };   /* only the farmer price from the price list; a product not on the list has no price */
+/* Orders keep the price they were placed at. New order lines carry it as [product, packs, unit price];
+   orders placed before the 18 Nov 2026 price list carry none, so they use the prices in force then. */
+const OLDP = {"Gramozyme Plus (Packet)":370,"Humigra 98":270,"Gramo Rhizza":412,"Solio Gold":380,"Gramoliser 19:19:19":120,"Gramoliser 00:52:34":200,"Gramoliser 13:00:45":150,"Nutri 00:00:50":180,"Gramino":340,"Zinox 395":420,"Nutricab":300,"Mainsul Sulphur 90% WG":220,"Gibromax":180,"TIKAU-G":45,"Masaal":354,"Hungama Gold":100,"JU-Zodia":319,"Top M":420,"COC":700,"Strepto Plus":20,"Decigen":180,"E-Mate":145,"Gram Veer 550":320,"Thiola":330,"Mantra":110,"Venus":115,"Cipro Shield GR":320,"Yellow Sticky Trap":450,"Blue Sticky Trap":450,"Fruit Fly Block & Fruit Fly Trap":85,"Pendi Plus":471,"Pretila-EW":360,"RIBAC-GOLD":350,"JU Mix":55,"URUMI":520,"Urea":250,"DAP + MOP (basal)":275,"Imazethapyr 10% SL":650,"Quizalofop ethyl 5% EC":455,"Clodinafop 15% WP":540,"Sulfosulfuron + Metsulfuron WG":570,"Atrazine 50% WP":580,"2 4-D Amine 58% SL":416,"Metribuzin 70% WP":610,"Oxyfluorfen 23.5% EC":560,"Halosulfuron 75% WG":380,"Tricyclazole 75% WP":375,"Metalaxyl + Mancozeb WP":420,"Propargite 57% EC":199,"Pymetrozine 50% WG":620,"Pheromone trap (lure)":180,"JU Azole":570,"JU-Value":120,"No-Virus AC":499,"Eco Neem-X":560,"Samrat":280,"Mahakal":320,"Kilron":4000,"JU Xylo Green":550,"Sumiprempt":555,"Claim":620,"Exponus":975,"Regent Ultra":780,"Takat":270,"10-15 Hybrid Mustard Seed":900,"2Chilli SeedsAagsy":700,"Arhar Sadabahar":390,"Balwan 303 Seed":860,"Barseem Premier Seeds":190,"Beans Seeds Mr Beans":551,"Brinjal Seeds_Sagar Ravaiy":251,"Combo Super 3":2150,"Combo Super 4":2240,"Fodder Grass CSV-33":940,"GS -10 Pea":360,"Imported Coriander European Wonder":230,"JUMBO FIGHTER Multicut Fodder":100,"Laksh F1 Pumpkin":480,"Meghna F1 Hybrid Chilli":550,"Mustard Combo 1":800,"Mustard Combo 2":1350,"Mustard Combo 3":700,"Mustard Seed Super Goldie":270,"Musturd 1666":1000,"Natural Black Urad Seed T-9":300,"Onion Seeds_Kanishk":1400,"Pea Seeds_Hira 10":350,"Radish Seeds Sagar Wonder":240,"Rajdhani Bottle Gaurd":450,"Rasili F1 Bottle Gaurd":1500,"Reva Acsen Hyveg (Chilli)":580,"Sakshi F1 Hybrid Bittergourd":554,"Super Wheat":1600,"Super Wheat 2":1500,"Tomato Shiva 2500":850,"Wheat DBW 187 Seed":1510,"Wheat HD 2967 Seed":1510,"Wheat PBW 343 Seed":1510,"Wheat PBW 502 Seed":1510};
+const unitOf = x => x[2] != null ? +x[2] : x[0] in OLDP ? OLDP[x[0]] : price(x[0]), lineAmt = x => unitOf(x) * x[1];
+const priced = lines => lines.map(([p, n]) => [p, n, price(p)]);
+const sold = p => PR[p] ? !!PR[p].gk && price(p) > 0 : false;
 
 /* ================= farmers ================= */
 /* A farmer gets a POP plan only when crop, variety and sowing date are known and the crop is in the POP data.
@@ -1534,7 +1539,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 /* ================= orders ================= */
 const OPEN = ['Placed', 'Confirmed', 'Manifested', 'Out for delivery', 'Rescheduled'];
 function allOrders() { return [...OPS.ORDERS, ...S.newOrders].map(o => Object.assign({}, o, S.ord[o.id] || {})) }
-const oval = o => o.items.reduce((s, [p, q]) => s + price(p) * q, 0) * (1 - (o.disc || 0) / 100);
+const oval = o => o.items.reduce((s, x) => s + lineAmt(x), 0) * (1 - (o.disc || 0) / 100);
 function oflags(o, all) {
   const out = [], st = OPS.STORES[o.store];
   if (['Manifested', 'Confirmed'].includes(o.status)) o.items.forEach(([p]) => { if (!stock(o.store, p)) out.push(['hot', `${o.status} but ${p} shows 0 at ${st.name}`]) });
@@ -1553,7 +1558,7 @@ const kindOf = p => /seed|paddy(?!.*pretila)/i.test(p) ? 'Seed' : /cattle|animal
 function histOf(f) {
   const past = (OPS.HIST[f.id] || []).map(o => Object.assign({src: 'lens'}, o));
   const sys = allOrders().filter(o => o.f === f.id && !OPEN.includes(o.status)).map(o => ({id: o.id, date: o.delivered || o.date, status: o.status, note: o.note, src: 'desk',
-    lines: o.items.map(([p, q]) => ({p, q, amt: price(p) * q * (1 - (o.disc || 0) / 100), kind: kindOf(p)}))}));
+    lines: o.items.map(x => ({p: x[0], q: x[1], amt: lineAmt(x) * (1 - (o.disc || 0) / 100), kind: kindOf(x[0])}))}));
   return [...past, ...sys].sort((a, b) => b.date.localeCompare(a.date));
 }
 function boughtOf(f) {
@@ -2330,11 +2335,11 @@ let OE = null, SOWED = null;
 const PRODS = Object.keys(PR).sort((a, b) => (sold(b) - sold(a)) || a.localeCompare(b));
 function orderEditor(o) {
   if (!OE || OE.id !== o.id) OE = {id: o.id, items: o.items.map(x => x.slice()), disc: 0, store: o.store, pref: o.pref || '', urgent: !!o.urgent, urgentWhy: o.urgentWhy || '', note: o.note || ''};
-  const e = OE, f = FM[o.f], sub = e.items.reduce((t, [p, q]) => t + price(p) * q, 0), cap = discount(f, sub).cap, tot = Math.round(sub * (1 - (+e.disc || 0) / 100));
+  const e = OE, f = FM[o.f], sub = e.items.reduce((t, x) => t + lineAmt(x), 0), cap = discount(f, sub).cap, tot = Math.round(sub * (1 - (+e.disc || 0) / 100));
   return `<div class="inline oedit"><span class="sl">Edit order ${esc(o.id)}</span>
    <table class="oet"><thead><tr><th>Product</th><th class="n">Packs</th><th class="n">Price</th><th class="n">Amount</th><th></th></tr></thead><tbody>
-   ${e.items.map(([p, q], k) => `<tr><td>${esc(p)}${sold(p) ? '' : ' ' + chip('mute', 'not sold by Gramik')}</td><td class="n"><input type="number" class="oeq" data-k="${k}" min="1" max="999" value="${q}" aria-label="Packs of ${esc(p)}"></td>
-     <td class="n num">${rupee(price(p))}</td><td class="n num">${rupee(price(p) * q)}</td><td class="n"><button type="button" class="lk small" data-act="oedel" data-k="${k}">Remove</button></td></tr>`).join('') || '<tr><td colspan="5" class="rm">No products. Add one below, or leave empty for the service team to confirm.</td></tr>'}
+   ${e.items.map((x, k) => { const [p, q] = x; return `<tr><td>${esc(p)}${sold(p) ? '' : ' ' + chip('mute', 'not sold by Gramik')}</td><td class="n"><input type="number" class="oeq" data-k="${k}" min="1" max="999" value="${q}" aria-label="Packs of ${esc(p)}"></td>
+     <td class="n num">${rupee(unitOf(x))}</td><td class="n num">${rupee(lineAmt(x))}</td><td class="n"><button type="button" class="lk small" data-act="oedel" data-k="${k}">Remove</button></td></tr>` }).join('') || '<tr><td colspan="5" class="rm">No products. Add one below, or leave empty for the service team to confirm.</td></tr>'}
    </tbody></table>
    <div class="oeadd"><input type="text" id="oe-np" list="oe-plist" placeholder="Add product: type the name" autocomplete="off"><datalist id="oe-plist">${PRODS.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
     <input type="number" id="oe-nq" min="1" value="1" aria-label="Packs"><button type="button" class="btn ghost sm" data-act="oeadd">Add</button></div>
@@ -2790,7 +2795,7 @@ function myOrders() {
   const fresh = allOrders().map(o => ({id: o.id, fid: o.f, kind: 'FARMER', items: o.items, date: o.date, time: '', source: 'EXOTEL_OUTGOING',
     status: o.status, pay: o.status === 'Delivered' ? 'Paid' : o.status === 'Returned' ? 'Refunded' : 'Unpaid', disc: o.disc || 0, isNew: S.newOrders.some(n => n.id === o.id), reason: o.note, dAgo: diff(o.date, TODAY)}));
   return [...fresh, ...mine].map(o => Object.assign(o, S.myo && S.myo[o.id] || {}, {
-    who: o.fid && FM[o.fid] ? FM[o.fid].short : o.name, amt: o.items.reduce((t, [p, q]) => t + price(p) * q, 0) * (1 - (o.disc || 0) / 100)}))
+    who: o.fid && FM[o.fid] ? FM[o.fid].short : o.name, amt: o.items.reduce((t, x) => t + lineAmt(x), 0) * (1 - (o.disc || 0) / 100)}))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (b.time || '').localeCompare(a.time || ''));
 }
 const inPer = (d, per) => per === 'all' || diff(d, TODAY) < (per === 'today' ? 1 : +per);
@@ -2859,7 +2864,7 @@ function myOrderList(x) {
      <td class="num" style="white-space:nowrap">${o.date === TODAY ? 'Today' : o.date === addDays(TODAY, -1) ? 'Yesterday' : fmt(o.date)}${o.time ? `<div class="rm">${hm({hr: +o.time.split(':')[0], min: +o.time.split(':')[1]})}</div>` : ''}</td>
      <td><div class="stc">${stPill(o.status)}${o.dispute ? `<span class="sp2 Disputed" title="${esc(o.dispute)}">Disputed</span>` : ''}</div>${stProg(o)}</td></tr>
      ${op ? `<tr class="odet"><td colspan="8"><div class="odg">
-       <div><span class="sl">Products</span><ul class="oil">${o.items.map(([p, q]) => `<li><span>${esc(p)} <span class="muted">× ${q}</span></span><span class="num">${rupee(price(p) * q)}</span></li>`).join('')}<li class="tot2"><span>Total${o.disc ? ' (after ' + o.disc + '% discount)' : ''}</span><span class="num">${rupee(o.amt)}</span></li></ul></div>
+       <div><span class="sl">Products</span><ul class="oil">${o.items.map(x => `<li><span>${esc(x[0])} <span class="muted">× ${x[1]}</span></span><span class="num">${rupee(lineAmt(x))}</span></li>`).join('')}<li class="tot2"><span>Total${o.disc ? ' (after ' + o.disc + '% discount)' : ''}</span><span class="num">${rupee(o.amt)}</span></li></ul></div>
        <div><span class="sl">Tracking</span><ol class="otl">${timeline(o).map(([s, d]) => `<li class="${d ? 'done' : ''} ${DEAD.includes(s) ? 'dead' : s === 'Rescheduled' ? 'rs' : ''}"><b>${esc(s)}</b><span class="rm">${d ? fmt(d) : 'pending'}</span></li>`).join('')}</ol>
         ${o.reason ? `<p class="note warm" style="margin-top:8px">${esc(o.reason)}</p>` : ''}${o.dispute ? `<p class="note hot" style="margin-top:8px"><b>Dispute:</b> ${esc(o.dispute)}</p>` : ''}</div>
        <div class="acts" style="align-content:flex-start"><button class="btn ghost sm" data-copy="${esc(o.id)}">Copy order ID</button>${f ? `<button class="btn ghost sm" data-farmer="${f.id}" data-tab="orders">Open farmer</button>` : ''}<button class="btn ghost sm" data-act="msms" data-id="${o.id}">Copy SMS to customer</button></div></div></td></tr>` : ''}` }).join('');
@@ -2879,7 +2884,7 @@ function myOverview(x, plab) {
   const T = ME.target || {}, mo = myStats('30'), bar = (v, t, lab, fmtv) => `<div class="tg"><div class="tgh"><b>${lab}</b><span class="num">${fmtv(v)} <span class="muted">of ${fmtv(t)}</span></span></div><div class="bar"><i class="${v / t >= 1 ? '' : v / t >= .6 ? 'warm' : 'hot'}" style="width:${Math.min(100, Math.round(v / t * 100))}%"></i></div></div>`;
   const by = (L, k) => { const m = {}; L.forEach(o => { const key = k(o); m[key] = m[key] || {n: 0, v: 0}; m[key].n++; m[key].v += o.amt }); return Object.entries(m).sort((a, b) => b[1].v - a[1].v) };
   const st = by(x.P, o => o.status), tot = x.P.length || 1, src = by(x.net, o => SRCL[o.source] || o.source);
-  const prod = {}; x.net.forEach(o => o.items.forEach(([p, q]) => { prod[p] = prod[p] || {q: 0, v: 0}; prod[p].q += q; prod[p].v += price(p) * q }));
+  const prod = {}; x.net.forEach(o => o.items.forEach(it => { const [p, q] = it; prod[p] = prod[p] || {q: 0, v: 0}; prod[p].q += q; prod[p].v += lineAmt(it) }));
   const top = Object.entries(prod).sort((a, b) => b[1].v - a[1].v).slice(0, 6), conv = x.P.length ? Math.round(x.net.length / x.P.length * 100) : 0;
   return `<div class="grid2"><div class="stack">
     <section><h3 class="h3">Monthly targets <span class="rm">last 30 days</span></h3>${bar(mo.net.length, T.orders || 60, 'Net orders', v => v)}${bar(mo.sum(mo.net), T.revenue || 60000, 'Revenue', rupee)}${bar(mo.pops, T.pop || 40, 'POP created', v => v)}</section>
@@ -3141,7 +3146,7 @@ const CB_TIMES = ['9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12
 function createOrder(f, lines, pref, urgent) {
   const sub = lines.reduce((s, [p, n]) => s + price(p) * n, 0), dsc = discount(f, sub), sid0 = storeOf(f), st = OPS.STORES[sid0] || OPS.STORES.LKO;
   const sid = st.load >= 90 && st.alt ? st.alt : sid0, oid = 'GO-' + window.__BOOT.owner.id + '-' + (48300 + S.newOrders.length);
-  S.newOrders.push({id: oid, f: f.id, date: TODAY, items: lines, status: 'Placed', store: OPS.STORES[sid] ? sid : 'LKO', pref: pref || null, urgent: !!urgent, urgentWhy: '', disc: dsc.r, approval: false, fromCall: true});
+  S.newOrders.push({id: oid, f: f.id, date: TODAY, items: priced(lines), status: 'Placed', store: OPS.STORES[sid] ? sid : 'LKO', pref: pref || null, urgent: !!urgent, urgentWhy: '', disc: dsc.r, approval: false, fromCall: true});
   return oid;
 }
 function openOutcome(id) {
@@ -3426,10 +3431,10 @@ document.addEventListener('click', ev => {
     const sub = lines.reduce((s, [p, n]) => s + price(p) * n, 0), dsc = discount(f, sub), ex = 0;
     const pref = $('bk-pref').value || null, urg = $('bk-urg').checked, to = t.dataset.to;
     if (to) { const o = allOrders().find(z => z.id === to), items = o.items.map(x => x.slice());
-      lines.forEach(([p, n]) => { const e = items.find(x => x[0] === p); if (e) e[1] += n; else items.push([p, n]) });
+      lines.forEach(([p, n]) => { const e = items.find(x => x[0] === p); if (e) e[1] += n; else items.push([p, n, price(p)]) });
       S.ord[to] = Object.assign(S.ord[to] || {}, {items, pref: pref || o.pref, urgent: urg || o.urgent}); toast('Added to ' + to);
     } else { const sid0 = storeOf(f), st = OPS.STORES[sid0], sid = st.load >= 90 && st.alt ? st.alt : sid0, oid = 'GO-' + window.__BOOT.owner.id + '-' + (48300 + S.newOrders.length);
-      S.newOrders.push({id: oid, f: f.id, date: TODAY, items: lines, status: 'Placed', store: sid, pref, urgent: urg, urgentWhy: '', disc: dsc.r + ex, approval: dsc.r + ex > dsc.cap, fromCall: CALLING === f.id});
+      S.newOrders.push({id: oid, f: f.id, date: TODAY, items: priced(lines), status: 'Placed', store: sid, pref, urgent: urg, urgentWhy: '', disc: dsc.r + ex, approval: dsc.r + ex > dsc.cap, fromCall: CALLING === f.id});
       toast(oid + ' created' + (sid !== sid0 ? ', routed to ' + OPS.STORES[sid].name : '')) }
     if (CALLING === f.id) { const last = S.newOrders[S.newOrders.length - 1]; S.callOrder = {f: f.id, id: to || (last && last.id)} }
     else addLog({f: f.id, ch: 'Call', topic: 'Order', out: 'Ordered', note: lines.map(([p, n]) => n + ' × ' + p).join(', ')});
@@ -3451,8 +3456,8 @@ document.addEventListener('click', ev => {
   if (a === 'oedit') { OE = null; OPEN_FORM = {kind: 'ord', id}; return rerender() }
   if (a === 'oedel') { oeRead(); OE.items.splice(+t.dataset.k, 1); return rerender() }
   if (a === 'oeadd') { oeRead(); const p = ($('oe-np').value || '').trim(), q = Math.max(1, Math.round(+$('oe-nq').value || 1)), k = PRODS.find(x => x.toLowerCase() === p.toLowerCase());
-    if (!k) { toast(p ? 'Pick a product from the list' : 'Type a product name'); return } const ex = OE.items.find(x => x[0] === k); if (ex) ex[1] += q; else OE.items.push([k, q]); rerender(); const n = $('oe-np'); if (n) n.focus(); return }
-  if (a === 'oesave') { oeRead(); const o = allOrders().find(z => z.id === id), f = FM[o.f], sub = OE.items.reduce((t2, [p, q]) => t2 + price(p) * q, 0), cap = discount(f, sub).cap;
+    if (!k) { toast(p ? 'Pick a product from the list' : 'Type a product name'); return } const ex = OE.items.find(x => x[0] === k); if (ex) ex[1] += q; else OE.items.push([k, q, price(k)]); rerender(); const n = $('oe-np'); if (n) n.focus(); return }
+  if (a === 'oesave') { oeRead(); const o = allOrders().find(z => z.id === id), f = FM[o.f], sub = OE.items.reduce((t2, x) => t2 + lineAmt(x), 0), cap = discount(f, sub).cap;
     const was = o.items.map(([p, q]) => q + ' × ' + p).join(', '), now = OE.items.map(([p, q]) => q + ' × ' + p).join(', ');
     S.ord[id] = Object.assign(S.ord[id] || {}, {items: OE.items.map(x => x.slice()), disc: +OE.disc || 0, approval: (+OE.disc || 0) > cap, store: OE.store, pref: OE.pref || null, urgent: OE.urgent, urgentWhy: OE.urgentWhy, note: OE.note, edited: TODAY});
     if (was !== now || (o.disc || 0) !== (+OE.disc || 0)) addLog({f: o.f, ch: 'Call', topic: 'Order', out: 'Resolved', note: 'Order ' + id + ' edited: ' + (now || 'products to be confirmed') + (+OE.disc ? ' · ' + OE.disc + '% off' : '')});
@@ -3524,7 +3529,7 @@ function deskReport() {
   const Q = callQueue(), fu = allFup();
   const orders = S.newOrders.map(o0 => { const o = Object.assign({}, o0, S.ord[o0.id] || {});
     return {id: o.id, f: o.f, name: nm(o.f), phone: ph(o.f), date: o.date, status: o.status, store: o.store, disc: o.disc || 0, urgent: !!o.urgent, approval: !!o.approval, fromCall: !!o.fromCall,
-      items: o.items.map(([p, q]) => [p, q, Math.round(price(p) * q)]), value: Math.round(oval(o))} });
+      items: o.items.map(x => [x[0], x[1], Math.round(lineAmt(x))]), value: Math.round(oval(o))} });
   return {
     v: 1, at: new Date().toISOString(), today: TODAY,
     farmers: F.filter(f => !f.sample).map(f => ({id: f.id, name: f.short, phone: f.phone, village: f.village, district: f.district, pin: f.pin, crop: f.cropName, variety: f.variety || '',
