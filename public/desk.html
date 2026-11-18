@@ -575,6 +575,7 @@ td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden aria-label="Products for this farmer"></aside>
 <aside class="drawer catp" id="catp" hidden aria-label="Product catalog"></aside>
+<div class="peek" id="peek" hidden></div>
 <section class="upl" id="upl" hidden role="dialog" aria-modal="true" aria-label="Upload a call list"></section>
 <section id="cop" hidden role="dialog" aria-modal="true" aria-label="Call outcome"></section>
 <section id="addf" hidden role="dialog" aria-modal="true" aria-label="Add farmer"></section>
@@ -1045,6 +1046,21 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 .seedb{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:14px}.seedb>b{font:600 15px var(--display);color:var(--deep)}.seedb .acts{margin-top:4px}
 .popg{white-space:pre-line;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14.5px;line-height:1.6;margin-top:6px}
 .fstg{margin:6px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:6px}.fstg li{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}.fstg li .rm{width:100%}
+.drawer.catp.split{width:min(1120px,100%)}
+.csplit{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);min-height:0}.csplit>.db{min-height:0;overflow:auto}
+.catl{border-right:1px solid var(--line)}.catl .cgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}.catdet{background:#FCFDFC}
+.pc.on{outline:2px solid var(--green);outline-offset:-1px;background:#F6FBF8}
+.pcrop dt{font-weight:600;color:var(--deep)}
+.peek{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px}.peek[hidden]{display:none}
+.pkbg{position:absolute;inset:0;background:rgba(20,35,28,.38)}
+.pkc{position:relative;background:var(--panel);border-radius:16px;box-shadow:0 18px 50px rgba(20,35,28,.3);width:min(460px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:16px 18px}
+.pkc>.x{position:absolute;right:12px;top:12px}
+.pkh{display:flex;gap:12px;align-items:flex-start;padding-right:64px}.pkh h3{font-size:19px;margin:2px 0}
+.pki{flex:0 0 84px;width:84px;height:84px;border-radius:12px;background:#F6F9F7;border:1px solid var(--line);display:grid;place-items:center;overflow:hidden}.pki img{width:100%;height:100%;object-fit:contain}
+.pkt{margin:10px 0 0;font-weight:600;color:var(--deep)}.pkc .advd{margin-top:10px}
+button.chip.pkb{cursor:pointer;border:1px solid transparent;font:inherit}button.chip.pkb:hover{border-color:currentColor;text-decoration:underline}
+button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:pointer;border-radius:8px;box-sizing:border-box}button.pwrap.pkw:hover .pn{text-decoration:underline}button.pwrap.pkw:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.pkl{font-size:12px;color:var(--green);font-weight:600}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1242,6 +1258,7 @@ const doseHi = d => { d = (d || '').trim(); return !d ? 'लेबल के अ
 const perAcre = d => { d = (d || '').trim(); if (!d || d === '–') return 'Dose as per label'; return /per |\/|trap|drench|seed|sett|label|irrigation/i.test(d) ? d : d + '/acre' };
 const rupee = n => '₹' + Math.round(n).toLocaleString('en-IN');
 const chip = (c, t) => `<span class="chip ${c}">${esc(t)}</span>`;
+const pchip = (c, p, t) => `<button type="button" class="chip ${c} pkb" data-act="peek" data-p="${esc(p)}" title="See product details">${esc(t)}</button>`;   /* a product chip that opens its summary */
 const SAMPLE = chip('sample', 'Sample');
 const norm = s => (s || '').toLowerCase().replace(/\([^)]*\)/g, '').replace(/[^0-9a-z]/g, '');
 const title = s => s.split(' s/o')[0].trim().toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
@@ -1389,7 +1406,7 @@ function advCard(a) {
   return `<article class="adv ${a.k}"><div class="advh"><span class="advt">${esc(a.tag)}</span><h4>${esc(a.title)}${a.sub ? ` <span class="hih">${esc(a.sub)}</span>` : ''}</h4></div>
    <dl class="advd">${row('Why', a.why ? esc(a.why) : '')}${row('When', when + (a.when && a.when.length && a.note ? `<div class="rm">${esc(a.note)}</div>` : ''))}${row('Check', a.check ? esc(a.check) : '')}${row('Signs', a.signs ? esc(a.signs) : '')}
    ${row('Do', a.act && a.act.length ? `<ul>${a.act.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : '')}
-   ${row('Products', a.products && a.products.length ? `<div class="chips">${a.products.map(p => `<span class="chip blue"><b>${esc(p.p)}</b> · ${esc(perAcre(p.dose))}${p.for ? ' · for ' + esc(p.for) : ''}</span>`).join('')}</div>` : '')}</dl>
+   ${row('Products', a.products && a.products.length ? `<div class="chips">${a.products.map(p => (PR[p.p] || catOf(p.p)) ? `<button type="button" class="chip blue pkb" data-act="peek" data-p="${esc(p.p)}" title="See product details"><b>${esc(p.p)}</b> · ${esc(perAcre(p.dose))}${p.for ? ' · for ' + esc(p.for) : ''}</button>` : `<span class="chip blue"><b>${esc(p.p)}</b> · ${esc(perAcre(p.dose))}${p.for ? ' · for ' + esc(p.for) : ''}</span>`).join('')}</div>` : '')}</dl>
    ${a.hi ? `<p class="advhi">${esc(a.hi)}</p>` : ''}</article>`;
 }
 function dayCards(days) {
@@ -2116,7 +2133,7 @@ function stagePanel(f, k, H) {
      const same = (a, b) => a === b || a.includes(b) || b.includes(a), got = g.orders.filter(o => o.status !== 'Returned').flatMap(o => o.lines.map(l => norm(l.p)));
      const season = histOf(f).filter(o => o.status !== 'Returned' && o.date >= addDays(f.sowISO, -15)).flatMap(o => o.lines.map(l => ({n: norm(l.p), d: o.date})));
      return `<div class="stpp"><span class="sl">Most recommended</span><div class="chips">${top.map(p => { const n = norm(p), here = got.some(x => same(x, n)), other = here ? null : season.filter(x => same(x.n, n)).map(x => x.d).sort().pop();
-       return chip(here ? 'ok' : other ? 'sky' : g.state === 'past' ? 'warm' : 'blue', (here || other ? '✓ ' : '') + p + (here ? '' : other ? ' · bought ' + fmt(other) : g.state === 'past' ? ' · missed' : ' · due now')) }).join('')}</div></div>` })()}</div>`;
+       return pchip(here ? 'ok' : other ? 'sky' : g.state === 'past' ? 'warm' : 'blue', p, (here || other ? '✓ ' : '') + p + (here ? '' : other ? ' · bought ' + fmt(other) : g.state === 'past' ? ' · missed' : ' · due now')) }).join('')}</div></div>` })()}</div>`;
 }
 function stpOrders(f, list, amt) {
   if (!list.length) return '<p class="stpe">No orders in this stage.</p>';
@@ -2388,19 +2405,12 @@ function catalog() {
   const f = FM[CUR], rec = new Set(f ? recs(f).now.map(x => CAT.link[x.product]).filter(Boolean) : []), sid = f ? storeOf(f) : 'LKO';
   const PK = c => c.pk.filter(k => k.sp > 1), pr = c => PK(c).length ? Math.min(...PK(c).map(k => k.sp)) : 0, mrp = c => PK(c).length ? PK(c).find(k => k.sp === pr(c)).mrp : 0, rp = v => v ? rupee(v) : '<span class="muted">Price not set</span>';
   const img = (c, cls) => CAT.img[c.id] ? `<img class="${cls}" src="${CAT.img[c.id]}" alt="${esc(c.n)}" loading="lazy">` : `<span class="${cls} ini">${esc(c.n.slice(0, 1))}</span>`;
-  if (CV.sel != null) { const c = CATBY[CV.sel], dn = deskName(c.id), bk = f ? (S.basket[f.id] || {}) : {}, q = dn ? stock(sid, dn) : 0;
-    el.innerHTML = `<div class="dh"><button class="btn ghost sm x" data-act="catclose">Close</button><button class="lk" data-act="catback">← All products</button></div>
-     <div class="db"><div class="cph">${img(c, 'cpi')}<div class="cphi"><span class="lbl2">${esc(RLAB[c.r] || c.r)} · ${esc(c.c)}</span><h3>${esc(c.n)}</h3><div class="rm">${c.gk ? '<span class="chip ok">Gramik brand</span> ' : ''}${esc(c.b)}</div>
-       ${c.tech ? `<div class="cpt">${esc(c.tech)}</div>` : ''}<div class="cpp"><b class="num">${rp(pr(c))}</b>${mrp(c) > pr(c) ? ` <s class="muted num">${rupee(mrp(c))}</s>` : ''} <span class="rm">catalog price${c.pk.length > 1 ? ', from' : ''}</span></div>
-       <div class="chips">${rec.has(c.id) ? chip('green', 'Recommended for ' + f.short.split(' ')[0]) : ''}${dn ? (q > 0 ? chip('ok', q + ' in stock') : chip('hot', 'Out of stock here')) : chip('mute', 'Not in this desk\'s product list')}</div>
-       ${dn && f && price(dn) ? `<div class="acts" style="margin-top:8px">${bk[dn] ? `<span class="chip ok">✓ ${bk[dn]} in cart</span><button class="btn ghost sm" data-act="catcart">Open cart</button>` : `<button class="btn sm" data-act="catadd" data-p="${esc(dn)}">Add to cart</button>`}</div>` : ''}</div></div>
-     ${c.sd || c.tag ? `<p class="cpd">${esc(c.sd || c.tag)}</p>` : ''}
-     ${c.ben.length ? `<div class="cps"><span class="sl">Benefits</span><ul class="ben">${c.ben.map(b => `<li>${esc(b)}</li>`).join('')}</ul></div>` : ''}
-     ${c.crops.length || c.dose || (dn && PR[dn]) ? `<div class="cps"><span class="sl">Use</span><dl class="advd">${c.crops.length ? `<dt>Crops</dt><dd>${esc(c.crops.join(', '))}</dd>` : ''}${dn && PR[dn] && PR[dn].dose ? `<dt>Dose</dt><dd>${esc(perAcre(PR[dn].dose))}</dd>` : c.dose ? `<dt>Dose</dt><dd>${esc(c.dose)}</dd>` : ''}${dn && PR[dn] && PR[dn].use ? `<dt>For</dt><dd>${esc(PR[dn].use)}</dd>` : ''}</dl></div>` : ''}
-     ${c.pk.length ? `<div class="cps"><span class="sl">Packs</span><div class="tw2"><table><thead><tr><th>Pack</th><th>SKU</th><th class="n">MRP</th><th class="n">Price</th></tr></thead><tbody>${c.pk.map(k => `<tr><td>${esc(k.pk)}</td><td class="num small">${esc(k.sku)}</td><td class="n">${k.sp > 1 ? rupee(k.mrp) : '–'}</td><td class="n"><b>${k.sp > 1 ? rupee(k.sp) : '<span class="muted">Not set</span>'}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
-     <p class="src" style="margin-top:12px">Catalog export ${esc(CAT.meta.merged || '')} · prices for Uttar Pradesh${c.upd ? ' · product updated ' + fmt(c.upd) : ''}</p></div>`;
+  const split = CV.sel != null && window.innerWidth >= 900;
+  el.classList.toggle('split', split);
+  if (CV.sel != null && !split) { const c = CATBY[CV.sel];
+    el.innerHTML = `<div class="dh"><button class="btn ghost sm x" data-act="catclose">Close</button><button class="lk" data-act="catback">← All products</button></div><div class="db">${catDetail(c)}</div>`;
   } else {
-    const grp = CROLE.find(g => g[0] === CV.r) || CROLE[0], q = CV.q.trim().toLowerCase();
+    const grp = CROLE.find(g => g[0] === CV.r) || CROLE[0], q = CV.q.trim().toLowerCase(), keep = split && $('catl') ? $('catl').scrollTop : 0;
     const L = CAT.cat.filter(c => (grp[0] === 'all' || grp[2].includes(c.r)) && (!CV.gk || c.gk) && (!q || (c.n + ' ' + c.b + ' ' + c.tech + ' ' + c.crops.join(' ')).toLowerCase().includes(q)))
       .sort((a, b) => rec.has(b.id) - rec.has(a.id) || b.gk - a.gk || a.n.localeCompare(b.n));
     const cnt = k => k === 'all' ? CAT.cat.length : CAT.cat.filter(c => CROLE.find(g => g[0] === k)[2].includes(c.r)).length;
@@ -2408,8 +2418,10 @@ function catalog() {
       <div class="rm">${CAT.cat.length} products · catalog export ${esc(CAT.meta.merged ? fmt(CAT.meta.merged) : '')}${f ? ' · recommended for ' + esc(f.short) + ' first' : ''}</div>
       <div class="catf"><input type="search" id="cat-q" placeholder="Search name, brand, technical, crop" value="${esc(CV.q)}" aria-label="Search the catalog"><label class="ck"><input type="checkbox" id="cat-gk"${CV.gk ? ' checked' : ''}> Gramik brand only</label></div>
       <div class="filt" role="group" aria-label="Category">${CROLE.filter(g => cnt(g[0])).map(([k, l]) => `<button class="chipb" type="button" data-act="catr" data-k="${k}" aria-pressed="${CV.r === k}">${l} <span class="muted">${cnt(k)}</span></button>`).join('')}</div></div>
-     <div class="db">${L.length ? `<div class="cgrid">${L.map(c => `<button type="button" class="pc" data-act="catsel" data-id="${c.id}"><span class="ph">${img(c, 'pci')}${rec.has(c.id) ? '<span class="pct">Recommended</span>' : ''}</span>
-       <span class="pcb"><b class="pcn">${esc(c.n)}</b><span class="pcm">${esc(c.tech || c.b)}</span><span class="pcf"><b class="num">${rp(pr(c))}</b>${mrp(c) > pr(c) ? `<s class="num">${rupee(mrp(c))}</s>` : ''}</span></span></button>`).join('')}</div>` : '<p class="empty">No product matches. Clear the search or pick All.</p>'}</div>`;
+     <div class="${split ? 'csplit' : 'db'}"><div class="${split ? 'db catl' : 'catl0'}" id="catl">${L.length ? `<div class="cgrid">${L.map(c => `<button type="button" class="pc${CV.sel === c.id ? ' on' : ''}" data-act="catsel" data-id="${c.id}" aria-pressed="${CV.sel === c.id}"><span class="ph">${img(c, 'pci')}${rec.has(c.id) ? '<span class="pct">Recommended</span>' : ''}</span>
+       <span class="pcb"><b class="pcn">${esc(c.n)}</b><span class="pcm">${esc(c.tech || c.b)}</span><span class="pcf"><b class="num">${rp(pr(c))}</b>${mrp(c) > pr(c) ? `<s class="num">${rupee(mrp(c))}</s>` : ''}</span></span></button>`).join('')}</div>` : '<p class="empty">No product matches. Clear the search or pick All.</p>'}</div>
+     ${split ? `<div class="db catdet" id="catdet" aria-live="polite"><div class="acts" style="justify-content:flex-end;margin:-4px 0 6px"><button class="lk small" data-act="catback">Close preview</button></div>${catDetail(CATBY[CV.sel])}</div>` : ''}</div>`;
+    if (keep) $('catl').scrollTop = keep;
   }
   el.hidden = false; $('scrim').hidden = false;
 }
@@ -2424,6 +2436,70 @@ function thumb(p) {
     : `<path d="M11 8h18l-1 4 1 20a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2l1-20z" fill="${c}"/><rect x="13" y="16" width="14" height="9" rx="1" fill="#fff" opacity=".9"/>`;
   return `<span class="pimg" style="--tc:${c}"><svg viewBox="0 0 40 40" aria-hidden="true">${shape}</svg><b>${lab}</b></span>`;
 }
+
+/* ================= product details: everything we know about one product ================= */
+const catOf = p => CATBY[CAT.link[p]] || CAT.cat.find(c => norm(c.n) === norm(p)) || null;
+const uniqPk = c => { const seen = new Set(); return (c.pk || []).filter(k => { const key = k.pk + '|' + k.sp; if (seen.has(key)) return false; seen.add(key); return true }) };
+const PINFO = {};
+function prodInfo(p) {   /* p = desk product name; returns what the POP and the product list say about it */
+  if (PINFO[p]) return PINFO[p];
+  const x = PR[p] || {}, issues = [], crops = [];
+  Object.entries(D.IP || {}).forEach(([id, L]) => (L || []).forEach(r => { if (r.p === p && D.I[id] && !issues.some(z => z.id === id)) issues.push({id, en: D.I[id].en, hi: D.I[id].hi, t: D.I[id].t, mode: r.mode, dose: r.dose}) }));
+  const np = norm(p);
+  if (np.length > 3) Object.entries(D.P).forEach(([ck, P]) => { const st = new Map();
+    Object.values(P.varieties || {}).forEach(t => Object.values(t).forEach(rows => (rows || []).forEach(r => { if (r && r.prod && norm(r.prod).includes(np) && !st.has(r.en)) st.set(r.en, {en: r.en, a: r.a, b: r.b}) })));
+    if (st.size) crops.push({ck, name: String(P.crop || ck).split('(')[0].trim(), stages: [...st.values()].sort((a, b) => (a.a || 0) - (b.a || 0))}) });
+  return PINFO[p] = {x, issues: issues.sort((a, b) => (a.mode === 'cure' ? 0 : 1) - (b.mode === 'cure' ? 0 : 1)), crops, risk: ((D.CF && D.CF.risk && D.CF.risk[p]) || [])};
+}
+const METHOD = {spray: 'Foliar spray', soil: 'Soil application / drench', trap: 'Field trap', seed: 'Seed treatment'};
+const PK_ = c => (c.pk || []).filter(k => k.sp > 1), cPrice = c => PK_(c).length ? Math.min(...PK_(c).map(k => k.sp)) : 0, cMrp = c => PK_(c).length ? PK_(c).find(k => k.sp === cPrice(c)).mrp : 0;
+const cImg = (c, cls) => CAT.img[c.id] ? `<img class="${cls}" src="${CAT.img[c.id]}" alt="${esc(c.n)}" loading="lazy">` : `<span class="${cls} ini">${esc(c.n.slice(0, 1))}</span>`;
+/* full details, shown in the catalog's side preview */
+function catDetail(c) {
+  const f = FM[CUR], dn = deskName(c.id), sid = f ? storeOf(f) : 'LKO', bk = f ? (S.basket[f.id] || {}) : {}, q = dn ? stock(sid, dn) : 0;
+  const rec = f && f.b ? recs(f).now.find(z => CAT.link[z.product] === c.id) : null, I = dn ? prodInfo(dn) : {x: {}, issues: [], crops: [], risk: []}, x = I.x;
+  const pks = uniqPk(c), rp = v => v ? rupee(v) : '<span class="muted">Price not set</span>', row = (l, v) => v ? `<dt>${l}</dt><dd>${v}</dd>` : '';
+  const dose = x.dose ? perAcre(x.dose) : c.dose, crops = c.crops.length ? c.crops : I.crops.map(z => z.name);
+  const pests = I.issues.filter(z => z.mode === 'cure'), prev = I.issues.filter(z => z.mode !== 'cure');
+  return `<div class="cph">${cImg(c, 'cpi')}<div class="cphi"><span class="lbl2">${esc(RLAB[c.r] || c.r)} · ${esc(c.c)}</span><h3>${esc(c.n)}</h3><div class="rm">${c.gk ? '<span class="chip ok">Gramik brand</span> ' : ''}${esc(c.b)}</div>
+     ${c.tech ? `<div class="cpt">${esc(c.tech)}</div>` : ''}<div class="cpp"><b class="num">${rp(cPrice(c))}</b>${cMrp(c) > cPrice(c) ? ` <s class="muted num">${rupee(cMrp(c))}</s> <span class="chip ok">${Math.round(100 - cPrice(c) / cMrp(c) * 100)}% off</span>` : ''} <span class="rm">${pks.length > 1 ? 'from · ' : ''}per ${esc((PK_(c).find(k => k.sp === cPrice(c)) || pks[0] || {}).pk || 'pack')}</span></div>
+     <div class="chips">${rec ? chip('green', 'Recommended for ' + f.short.split(' ')[0] + ' now') : ''}${dn ? (q > 0 ? chip('ok', q + ' in stock') : chip('hot', 'Out of stock here')) : chip('mute', 'Not in this desk\'s product list')}</div>
+     ${dn && f && price(dn) ? `<div class="acts" style="margin-top:6px">${bk[dn] ? `<span class="chip ok">✓ ${bk[dn]} in cart</span><button class="btn ghost sm" data-act="catcart">Open cart</button>` : `<button class="btn sm" data-act="catadd" data-p="${esc(dn)}">Add to cart</button>`}</div>` : ''}</div></div>
+   ${c.sd ? `<p class="cpd"><b>${esc(c.sd)}</b></p>` : ''}${c.tag && c.tag !== c.sd && c.tag.length > 3 ? `<p class="cpd" style="margin-top:4px">${esc(c.tag)}</p>` : ''}
+   ${rec && rec.reasons && rec.reasons.length ? `<div class="cps"><span class="sl">Why it is recommended now</span><ul class="ben">${rec.reasons.slice(0, 3).map(r => `<li>${esc(r.text)}</li>`).join('')}</ul></div>` : ''}
+   <div class="cps"><span class="sl">How to use</span><dl class="advd">${row('Dose', dose ? `<b>${esc(dose)}</b>${x.pump ? ` · ${esc(x.pump)} per 15 L pump` : ''}` : '')}${row('Method', x.m ? esc(METHOD[x.m] || x.m) : '')}${row('Used for', x.use ? esc(x.use) : '')}${row('Crops', crops.length ? esc(crops.join(', ')) : '')}${!dose && !x.use && !crops.length ? row('Note', 'No dose or crop in the catalog yet. Follow the label.') : ''}</dl></div>
+   ${pests.length || prev.length ? `<div class="cps"><span class="sl">Controls (POP)</span>${pests.length ? `<div class="chips" style="margin-top:4px">${pests.map(z => `<span class="chip hot" title="${esc(z.hi || '')}">${esc(z.en)}${z.dose ? ' · ' + esc(z.dose) : ''}</span>`).join('')}</div>` : ''}${prev.length ? `<div class="rm" style="margin-top:6px">Prevents</div><div class="chips">${prev.map(z => `<span class="chip mute">${esc(z.en)}${z.dose ? ' · ' + esc(z.dose) : ''}</span>`).join('')}</div>` : ''}</div>` : ''}
+   ${I.crops.length ? `<div class="cps"><span class="sl">In crop plans (POP) · ${I.crops.length} crop${I.crops.length > 1 ? 's' : ''}</span><dl class="advd pcrop">${I.crops.slice(0, 12).map(z => `<dt>${esc(z.name)}</dt><dd>${z.stages.slice(0, 3).map(st => esc(st.en) + (st.a != null ? ` <span class="muted">day ${st.a}–${st.b}</span>` : '')).join(' · ')}</dd>`).join('')}</dl>${I.crops.length > 12 ? `<div class="rm">and ${I.crops.length - 12} more crops</div>` : ''}</div>` : ''}
+   ${c.ben.length ? `<div class="cps"><span class="sl">Benefits</span><ul class="ben">${c.ben.map(b => `<li>${esc(b)}</li>`).join('')}</ul></div>` : ''}
+   ${pks.length ? `<div class="cps"><span class="sl">Packs and prices</span><div class="tw2"><table><thead><tr><th>Pack</th><th>SKU</th><th class="n">MRP</th><th class="n">Price</th></tr></thead><tbody>${pks.map(k => `<tr><td>${esc(k.pk)}</td><td class="num small">${esc(k.sku)}</td><td class="n">${k.sp > 1 ? rupee(k.mrp) : '–'}</td><td class="n"><b>${k.sp > 1 ? rupee(k.sp) : '<span class="muted">Not set</span>'}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
+   <div class="cps"><span class="sl">Care</span><div class="small">${I.risk.length ? I.risk.slice(0, 2).map(k => `<div>${esc(k.w)}${k.d ? ` <span class="muted">· ${esc(k.d)}</span>` : ''}</div>`).join('') : 'Wear gloves and a mask. Keep away from children and animals. Follow the waiting period on the label before harvest.'}</div></div>
+   <p class="src" style="margin-top:12px">Catalog export ${esc(CAT.meta.merged ? fmt(CAT.meta.merged) : '')} · prices for Uttar Pradesh${c.upd ? ' · product updated ' + fmt(c.upd) : ''}</p>`;
+}
+/* short summary, shown when a recommended product is clicked */
+let PEEK = null;
+function peek() {
+  const el = $('peek'); if (!PEEK) { el.hidden = true; el.innerHTML = ''; return }
+  const p = PEEK, f = FM[CUR], c = catOf(p), dn = c ? (deskName(c.id) || p) : p, I = prodInfo(PR[p] ? p : dn), x = I.x, sid = f ? storeOf(f) : 'LKO';
+  const r = f && f.b ? [...recs(f).now, ...recs(f).later].find(z => z.product === p) : null, q = sold(dn) ? stock(sid, dn) : 0, bk = f ? (S.basket[f.id] || {}) : {};
+  const dose = perAcre((r && r.dose && r.dose[0]) || x.dose || (c && c.dose) || ''), pks = c ? uniqPk(c).filter(k => k.sp > 1) : [], pr = price(dn) || (c ? cPrice(c) : 0);
+  const ctrl = I.issues.filter(z => z.mode === 'cure').slice(0, 5);
+  const img = c && CAT.img[c.id] ? `<img src="${CAT.img[c.id]}" alt="">` : IMG[p] ? `<img src="${esc(IMG[p])}" alt="">` : thumb(p);
+  el.innerHTML = `<div class="pkbg" data-act="peekx"></div><div class="pkc" role="dialog" aria-modal="true" aria-label="${esc(p)}">
+   <button class="btn ghost sm x" type="button" data-act="peekx" aria-label="Close">Close</button>
+   <div class="pkh"><span class="pki">${img}</span><div><span class="lbl2">${esc(c ? (RLAB[c.r] || c.r) : (x.t || 'Product'))}${c && c.gk || x.gk ? ' · Gramik brand' : ''}</span><h3>${esc(c ? c.n : p)}</h3>
+     <div class="rm">${esc([c && c.b, x.tech || (c && c.tech)].filter(Boolean).join(' · '))}</div>
+     <div class="cpp" style="margin-top:4px">${pr ? `<b class="num">${rupee(pr)}</b>${(() => { const k = pks.find(z => z.sp === pr); return k ? `${k.mrp > k.sp ? ` <s class="muted num">${rupee(k.mrp)}</s>` : ''} <span class="rm">per ${esc(k.pk)}</span>` : '' })()}` : '<span class="muted">Not sold by Gramik</span>'}</div></div></div>
+   ${c && c.sd ? `<p class="pkt">${esc(c.sd)}</p>` : ''}
+   <dl class="advd">${r && r.reasons && r.reasons.length ? `<dt>Why now</dt><dd>${r.reasons.slice(0, 2).map(z => esc(z.text)).join('<br>')}</dd>` : ''}
+    ${dose ? `<dt>Dose</dt><dd><b>${esc(dose)}</b>${x.pump ? ` · ${esc(x.pump)} per pump` : ''}${f && f.acres ? `<div class="rm">${esc(f.acres)} acre${f.acres == 1 ? '' : 's'} → ${Math.max(1, Math.ceil(f.acres))} pack${Math.ceil(f.acres) > 1 ? 's' : ''}</div>` : ''}</dd>` : ''}
+    ${x.m ? `<dt>Method</dt><dd>${esc(METHOD[x.m] || x.m)}</dd>` : ''}
+    ${ctrl.length ? `<dt>Controls</dt><dd><div class="chips">${ctrl.map(z => chip('mute', z.en)).join('')}</div></dd>` : x.use ? `<dt>Used for</dt><dd>${esc(x.use)}</dd>` : ''}
+    ${pks.length ? `<dt>Packs</dt><dd><div class="chips">${pks.slice(0, 4).map(k => chip('blue', k.pk + ' · ' + rupee(k.sp))).join('')}</div></dd>` : ''}
+    ${sold(dn) ? `<dt>Stock</dt><dd>${q > 0 ? chip('ok', q + ' in stock') : chip('hot', 'Out of stock here')}</dd>` : ''}</dl>
+   <div class="acts" style="margin-top:10px">${f && sold(dn) && pr ? (bk[dn] ? `<span class="chip ok">✓ ${bk[dn]} in cart</span>` : `<button class="btn sm" type="button" data-act="peekadd" data-p="${esc(dn)}">Add to cart</button>`) : ''}${c ? `<button class="btn ghost sm" type="button" data-act="peekfull" data-id="${c.id}">Full details</button>` : ''}</div></div>`;
+  el.hidden = false; const b = el.querySelector('.pkc .x'); if (b) b.focus();
+}
+
 /* ================= Products drawer (Gramik Lens pop-up) ================= */
 /* how to use a product: dose for this farm, method, best days, purpose and cautions */
 function howTo(f, p) {
@@ -2568,7 +2644,7 @@ function drawer(open) {
   const BB = Object.fromEntries(boughtOf(f).map(b => [b.p, b]));
   const li = i => { const p = i.x.product, q = stock(sid, p), aq = alt ? stock(alt, p) : 0, pr = price(p), n = bk[p] || 0, g = sold(p);
     const st = !g ? chip('mute', 'Advice only, not sold by Gramik') : q > 0 ? chip('ok', q + ' in stock') : aq > 0 ? chip('warm', 'Out here · ' + aq + ' at ' + OPS.STORES[alt].name.replace(' dark store', '')) : chip('hot', 'Out of stock');
-    return `<li><div class="pwrap">${thumb(p)}<div><div class="pn">${esc(p)}</div><div class="pt">${esc(PR[p] ? (PR[p].tech || '') : '')}</div></div></div>
+    return `<li><button type="button" class="pwrap pkw" data-act="peek" data-p="${esc(p)}" title="See product details">${thumb(p)}<div><div class="pn">${esc(p)}</div><div class="pt">${esc(PR[p] ? (PR[p].tech || '') : '')}</div><span class="pkl">Details</span></div></button>
      <div class="pr">${g ? rupee(pr) : '–'}<small>${esc(perAcre((i.x.dose || [])[0]))}</small></div>
      <div class="pw"><div class="chips">${i.rec ? chip('green', 'Recommended') : i.cat ? '' : i.other ? chip('blue', 'In stock for this crop') : chip('mute', 'Also useful now')}${st}${BB[p] ? chip('violet', 'Bought ' + BB[p].times + '× · last ' + fmt(BB[p].last)) : ''}${(i.x.reasons || []).slice(0, 2).map(r => chip(r.factor === 3 ? 'hot' : 'mute', (r.factorLabel ? r.factorLabel + ': ' : '') + r.text)).join('')}</div>
      ${g ? `<div class="acts" style="margin-top:6px;align-items:center">${n ? `<span class="qty"><button type="button" data-act="bq" data-p="${esc(p)}" data-d="-1" aria-label="Less">−</button><span>${n}</span><button type="button" data-act="bq" data-p="${esc(p)}" data-d="1" aria-label="More">+</button></span><span class="small muted">packs (1 pack = 1 acre dose)</span>` : `<button class="btn ghost sm" data-act="badd" data-p="${esc(p)}">Add ${Math.max(1, Math.ceil(f.acres))} for ${f.acres} ac</button>`}</div>` : ''}</div></li>` };
@@ -3262,7 +3338,14 @@ document.addEventListener('click', ev => {
   if (a === 'catopen') return catOpen();
   if (a === 'catclose') { CV = null; return catalog() }
   if (a === 'catback') { CV.sel = null; return catalog() }
-  if (a === 'catsel') { CV.sel = +t.dataset.id; catalog(); $('catp').scrollTop = 0; const b = $('catp').querySelector('.db'); if (b) b.scrollTop = 0; return }
+  if (a === 'catsel') { CV.sel = +t.dataset.id;
+    if ($('catdet') && window.innerWidth >= 900) { $('catdet').innerHTML = `<div class="acts" style="justify-content:flex-end;margin:-4px 0 6px"><button class="lk small" data-act="catback">Close preview</button></div>` + catDetail(CATBY[CV.sel]); $('catdet').scrollTop = 0;
+      $('catl').querySelectorAll('.pc').forEach(b => { const on = +b.dataset.id === CV.sel; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on) }); return }
+    catalog(); $('catp').scrollTop = 0; const b = $('catdet') || $('catp').querySelector('.db'); if (b) b.scrollTop = 0; return }
+  if (a === 'peek') { PEEK = t.dataset.p; return peek() }
+  if (a === 'peekx') { PEEK = null; return peek() }
+  if (a === 'peekadd') { const f = FM[CUR], bk = S.basket[f.id] = S.basket[f.id] || {}; bk[t.dataset.p] = Math.max(1, Math.ceil(f.acres || 1)); save(); toast(t.dataset.p + ' added to the cart'); peek(); if (!$('drawer').hidden) drawer(true); if (CV) catalog(); return }
+  if (a === 'peekfull') { PEEK = null; peek(); drawer(false); CV = CV || {q: '', r: 'all', gk: false, sel: null}; CV.sel = +t.dataset.id; return catalog() }
   if (a === 'catr') { CV.r = t.dataset.k; return catalog() }
   if (a === 'catadd') { const f = FM[CUR], bk = S.basket[f.id] = S.basket[f.id] || {}; bk[t.dataset.p] = Math.max(1, Math.ceil(f.acres)); save(); toast(t.dataset.p + ' added to the cart'); return catalog() }
   if (a === 'catcart') { CV = null; catalog(); return drawer(true) }
@@ -3342,6 +3425,7 @@ document.addEventListener('submit', e => { if (e.target.id !== 'fnmf') return; e
   S.fname[CUR] = v; const nf = refit(CUR);
   addLog({f: CUR, ch: 'Call', topic: 'Other', out: 'Resolved', note: 'Name corrected from ' + old + ' to ' + nf.short});
   save(); toast('Name saved: ' + nf.short); rerender() });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && PEEK) { PEEK = null; peek(); e.stopImmediatePropagation(); return } }, true);
 document.addEventListener('keydown', e => { if (NAMED && e.key === 'Escape' && e.target && e.target.id === 'fnm-in') { NAMED = null; rerender() } });
 document.addEventListener('submit', e => { if (e.target.id !== 'wxaskf') return; e.preventDefault();
   const f = FM[CUR], dist = ($('wx-dist').value || '').trim(), pin = ($('wx-pin').value || '').replace(/\D/g, '');
