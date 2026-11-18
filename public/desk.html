@@ -1061,6 +1061,8 @@ const DSD={"source":"Dark store sheet shared 30 Oct 2026","stores":[{"id":"DS01"
 button.chip.pkb{cursor:pointer;border:1px solid transparent;font:inherit}button.chip.pkb:hover{border-color:currentColor;text-decoration:underline}
 button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:pointer;border-radius:8px;box-sizing:border-box}button.pwrap.pkw:hover .pn{text-decoration:underline}button.pwrap.pkw:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .pkl{font-size:12px;color:var(--green);font-weight:600}
+.hiab p{margin:4px 0 0;line-height:1.65}.hib{margin:4px 0 0;padding-left:20px;line-height:1.6}.hib li{margin:3px 0}.hib b{color:var(--deep)}
+.pkc .hiab{margin-top:10px}.pkc .hiab .sl{font-size:12px}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -2465,16 +2467,83 @@ function catDetail(c) {
      ${c.tech ? `<div class="cpt">${esc(c.tech)}</div>` : ''}<div class="cpp"><b class="num">${rp(cPrice(c))}</b>${cMrp(c) > cPrice(c) ? ` <s class="muted num">${rupee(cMrp(c))}</s> <span class="chip ok">${Math.round(100 - cPrice(c) / cMrp(c) * 100)}% off</span>` : ''} <span class="rm">${pks.length > 1 ? 'from · ' : ''}per ${esc((PK_(c).find(k => k.sp === cPrice(c)) || pks[0] || {}).pk || 'pack')}</span></div>
      <div class="chips">${rec ? chip('green', 'Recommended for ' + f.short.split(' ')[0] + ' now') : ''}${dn ? (q > 0 ? chip('ok', q + ' in stock') : chip('hot', 'Out of stock here')) : chip('mute', 'Not in this desk\'s product list')}</div>
      ${dn && f && price(dn) ? `<div class="acts" style="margin-top:6px">${bk[dn] ? `<span class="chip ok">✓ ${bk[dn]} in cart</span><button class="btn ghost sm" data-act="catcart">Open cart</button>` : `<button class="btn sm" data-act="catadd" data-p="${esc(dn)}">Add to cart</button>`}</div>` : ''}</div></div>
-   ${c.sd ? `<p class="cpd"><b>${esc(c.sd)}</b></p>` : ''}${c.tag && c.tag !== c.sd && c.tag.length > 3 ? `<p class="cpd" style="margin-top:4px">${esc(c.tag)}</p>` : ''}
+   ${c.sd ? `<p class="cpd"><b>${esc(c.sd)}</b></p>` : ''}
+   ${hiBlocks(c)}
    ${rec && rec.reasons && rec.reasons.length ? `<div class="cps"><span class="sl">Why it is recommended now</span><ul class="ben">${rec.reasons.slice(0, 3).map(r => `<li>${esc(r.text)}</li>`).join('')}</ul></div>` : ''}
    <div class="cps"><span class="sl">How to use</span><dl class="advd">${row('Dose', dose ? `<b>${esc(dose)}</b>${x.pump ? ` · ${esc(x.pump)} per 15 L pump` : ''}` : '')}${row('Method', x.m ? esc(METHOD[x.m] || x.m) : '')}${row('Used for', x.use ? esc(x.use) : '')}${row('Crops', crops.length ? esc(crops.join(', ')) : '')}${!dose && !x.use && !crops.length ? row('Note', 'No dose or crop in the catalog yet. Follow the label.') : ''}</dl></div>
-   ${pests.length || prev.length ? `<div class="cps"><span class="sl">Controls (POP)</span>${pests.length ? `<div class="chips" style="margin-top:4px">${pests.map(z => `<span class="chip hot" title="${esc(z.hi || '')}">${esc(z.en)}${z.dose ? ' · ' + esc(z.dose) : ''}</span>`).join('')}</div>` : ''}${prev.length ? `<div class="rm" style="margin-top:6px">Prevents</div><div class="chips">${prev.map(z => `<span class="chip mute">${esc(z.en)}${z.dose ? ' · ' + esc(z.dose) : ''}</span>`).join('')}</div>` : ''}</div>` : ''}
-   ${I.crops.length ? `<div class="cps"><span class="sl">In crop plans (POP) · ${I.crops.length} crop${I.crops.length > 1 ? 's' : ''}</span><dl class="advd pcrop">${I.crops.slice(0, 12).map(z => `<dt>${esc(z.name)}</dt><dd>${z.stages.slice(0, 3).map(st => esc(st.en) + (st.a != null ? ` <span class="muted">day ${st.a}–${st.b}</span>` : '')).join(' · ')}</dd>`).join('')}</dl>${I.crops.length > 12 ? `<div class="rm">and ${I.crops.length - 12} more crops</div>` : ''}</div>` : ''}
-   ${c.ben.length ? `<div class="cps"><span class="sl">Benefits</span><ul class="ben">${c.ben.map(b => `<li>${esc(b)}</li>`).join('')}</ul></div>` : ''}
+   ${pests.length ? `<div class="cps"><span class="sl">Controls (POP)</span>${pests.length ? `<div class="chips" style="margin-top:4px">${pests.map(z => `<span class="chip hot" title="${esc(z.hi || '')}">${esc(z.en)}${z.dose ? ' · ' + esc(z.dose) : ''}</span>`).join('')}</div>` : ''}</div>` : ''}
    ${pks.length ? `<div class="cps"><span class="sl">Packs and prices</span><div class="tw2"><table><thead><tr><th>Pack</th><th>SKU</th><th class="n">MRP</th><th class="n">Price</th></tr></thead><tbody>${pks.map(k => `<tr><td>${esc(k.pk)}</td><td class="num small">${esc(k.sku)}</td><td class="n">${k.sp > 1 ? rupee(k.mrp) : '–'}</td><td class="n"><b>${k.sp > 1 ? rupee(k.sp) : '<span class="muted">Not set</span>'}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}
    <div class="cps"><span class="sl">Care</span><div class="small">${I.risk.length ? I.risk.slice(0, 2).map(k => `<div>${esc(k.w)}${k.d ? ` <span class="muted">· ${esc(k.d)}</span>` : ''}</div>`).join('') : 'Wear gloves and a mask. Keep away from children and animals. Follow the waiting period on the label before harvest.'}</div></div>
    <p class="src" style="margin-top:12px">Catalog export ${esc(CAT.meta.merged ? fmt(CAT.meta.merged) : '')} · prices for Uttar Pradesh${c.upd ? ' · product updated ' + fmt(c.upd) : ''}</p>`;
 }
+
+/* ================= "इस उत्पाद के बारे में" and "मुख्य फायदे" (Hindi), for every catalog product =================
+   Written by hand where reviewed (HIPROD); otherwise built from the catalog entry and the POP: type, technical, pests it controls, crops, dose and pack price. */
+const HIPROD = {
+  'Decigen': {about: ['Decigen (JU Agri Sciences) एक कीटनाशक है जिसमें Chlorantraniliprole 18.5% SC है। यह इल्ली और छेदक कीटों पर काम करता है, यानी वे कीट जो तना, फली और फल में छेद करते हैं या पत्तियाँ खाते हैं। दवा लगी पत्ती या तना खाते ही इल्ली कुछ घंटों में खाना बंद कर देती है। एक छिड़काव से फसल को लंबे समय तक सुरक्षा मिलती है।',
+      'यह धान, कपास, दलहन (फली छेदक), मक्का, बाजरा, गन्ना, बैंगन और भिंडी में इस्तेमाल होता है।',
+      'मात्रा: एक एकड़ में 60 मिली दवा 150–200 लीटर पानी में घोलकर छिड़काव करें। 15 लीटर के पंप में लगभग 6 मिली डालें।'],
+    ben: [['तुरंत असर', 'छिड़काव के कुछ घंटों में इल्ली खाना बंद कर देती है। फसल का नुकसान उसी दिन रुक जाता है।'],
+      ['लंबी सुरक्षा', 'एक छिड़काव से 2–3 हफ्ते तक बचाव मिलता है, इसलिए सीज़न में कम छिड़काव करने पड़ते हैं।'],
+      ['कई छेदक कीटों पर असरदार', 'तना छेदक, पत्ती लपेटक, फली छेदक, फल व तना छेदक, गुलाबी सुंडी, फॉल आर्मीवर्म और अगेती तना छेदक को रोकता है।'],
+      ['पौधे के अंदर तक असर', 'दवा पौधे के अंदर जाती है। पत्ती या तने में छिपी इल्ली पर भी काम करती है।'],
+      ['कम मात्रा, कम खर्च', 'सिर्फ 60 मिली प्रति एकड़ लगती है। 60 मिली का पैक ₹180 में आता है और एक एकड़ के लिए काफी है।'],
+      ['मित्र कीटों के लिए सुरक्षित', 'सही मात्रा में इस्तेमाल करने पर मधुमक्खी और मित्र कीटों को बहुत कम नुकसान होता है।']]}
+};
+const HTYPE = {insecticide: 'कीटनाशक', acaricide: 'माइटनाशक (मकड़ीनाशक)', fungicide: 'फफूंदनाशक', bactericide: 'जीवाणुनाशक', virus_management: 'वायरस प्रबंधन उत्पाद', herbicide: 'खरपतवारनाशक', nutrition: 'पोषक उत्पाद', biostimulant: 'जैव उत्तेजक (बायो-स्टिमुलेंट)', pgr: 'पौध वृद्धि नियामक', adjuvant: 'स्टिकर / स्प्रेडर', combo_kit: 'किट', trap: 'ट्रैप', seed: 'बीज', cattle_feed: 'पशु आहार पूरक', equipment: 'कृषि उपकरण'};
+const HBEN = {
+  insecticide: [['तेज़ असर', 'कीटों पर जल्दी असर करता है, जिससे फसल का नुकसान जल्दी रुकता है।'], ['सही समय पर बचाव', 'कीट दिखते ही छिड़काव करने से फसल सुरक्षित रहती है और उपज बचती है।']],
+  acaricide: [['माइट पर नियंत्रण', 'लाल मकड़ी और दूसरी माइट को रोकता है, पत्तियाँ हरी रहती हैं।'], ['सही समय पर बचाव', 'माइट दिखते ही छिड़काव करने से फसल सुरक्षित रहती है।']],
+  fungicide: [['रोकथाम और नियंत्रण', 'रोग आने से पहले बचाव करता है और रोग दिखने पर फैलाव रोकता है।'], ['स्वस्थ पत्ती और फल', 'पत्तियाँ और फल स्वस्थ रहते हैं, उपज और गुणवत्ता बेहतर होती है।']],
+  bactericide: [['जीवाणु रोगों पर नियंत्रण', 'जीवाणु से होने वाले झुलसा और सड़न रोगों का फैलाव रोकता है।'], ['स्वस्थ फसल', 'पत्तियाँ और फल स्वस्थ रहते हैं।']],
+  virus_management: [['वायरस फैलने से रोक', 'वायरस फैलाने वाले कीटों और रोग के असर को कम करता है।'], ['स्वस्थ बढ़वार', 'पौधे की बढ़वार बनी रहती है।']],
+  herbicide: [['खरपतवार से छुटकारा', 'खरपतवार हटते हैं, फसल को पूरा पोषण, पानी और धूप मिलती है।'], ['मज़दूरी की बचत', 'निराई-गुड़ाई का समय और खर्च बचता है।']],
+  nutrition: [['बेहतर बढ़वार', 'पौधों को ज़रूरी पोषण मिलता है, बढ़वार और हरापन अच्छा रहता है।'], ['ज़्यादा उपज', 'फूल, फल और दाने भराव अच्छा होता है, उपज और गुणवत्ता बढ़ती है।']],
+  biostimulant: [['मज़बूत जड़ें', 'जड़ों का विकास बढ़ता है, पौधा खाद और पानी अच्छे से लेता है।'], ['तनाव में सहारा', 'गर्मी, ठंड या पानी की कमी के समय पौधे को ताकत मिलती है।']],
+  pgr: [['बढ़वार में सुधार', 'पौधे की बढ़वार, फूल और फल बनने में मदद करता है।'], ['फूल-फल झड़ना कम', 'सही समय पर देने से फूल और फल कम झड़ते हैं।']],
+  adjuvant: [['दवा का पूरा असर', 'दवा पत्तियों पर अच्छे से फैलती और चिपकती है।'], ['बारिश में भी टिकाऊ', 'छिड़काव के बाद हल्की बारिश में दवा कम धुलती है।']],
+  combo_kit: [['एक किट में सब', 'ज़रूरी उत्पाद एक साथ, अलग-अलग खरीदने की ज़रूरत नहीं।'], ['किफ़ायती', 'किट में लेने से खर्च कम और इस्तेमाल आसान।']],
+  trap: [['बिना दवा निगरानी', 'कीटों की संख्या पर नज़र रहती है, ज़रूरत पड़ने पर ही छिड़काव।'], ['कीट कम', 'कीट ट्रैप में फँसते हैं, फसल पर दबाव कम होता है।']],
+  seed: [['अच्छा जमाव', 'सही बीज दर और समय पर बुवाई से एक समान जमाव और अच्छी फसल।'], ['भरोसेमंद ब्रांड', 'जानी-मानी कंपनी का बीज।']],
+  cattle_feed: [['पशु का पोषण', 'दुधारू पशुओं को ज़रूरी खनिज और पोषण मिलता है।'], ['दूध और सेहत', 'पशु की सेहत और दूध उत्पादन में मदद करता है।']],
+  equipment: [['काम आसान', 'खेत का काम कम मेहनत और कम समय में।'], ['टिकाऊ', 'लंबे समय तक इस्तेमाल के लिए।']]
+};
+const hiName = s => String(s || '').split('/')[0].trim();
+const HICROP = {Beans: 'सेम / बीन्स', 'Pointed gourd': 'परवल'};
+const hiCrop = ck => { if (HICROP[ck]) return HICROP[ck]; const P = D.P[ck], m = P && String(P.crop).match(/\(\s*([^)]+?)\s*\)/); return m ? m[1] : (P ? String(P.crop).split('(')[0].trim() : ck) };
+const hiCropEn = en => { const k = Object.keys(D.P).find(x => x.toLowerCase() === String(en).toLowerCase() || String(D.P[x].crop).toLowerCase().startsWith(String(en).toLowerCase())); return k ? hiCrop(k) : en };
+const hiDose = d => String(d || '').replace(/\/\s*acre/gi, ' प्रति एकड़').replace(/\/\s*kg seed/gi, ' प्रति किग्रा बीज').replace(/\bkg\b/gi, 'किग्रा').replace(/\bml\b/gi, 'मिली').replace(/(\d)\s*g\b/gi, '$1 ग्राम').replace(/\bL\b/g, 'लीटर').replace(/\btraps?\b/gi, 'ट्रैप').trim();
+const hiList = (a, n) => a.length > n ? a.slice(0, n).join(', ') + ' आदि' : a.length > 1 ? a.slice(0, -1).join(', ') + ' और ' + a[a.length - 1] : a.join('');
+const HIC = {};
+function hiAbout(c) {
+  if (HIC[c.id]) return HIC[c.id];
+  if (HIPROD[c.n]) return HIC[c.id] = HIPROD[c.n];
+  const dn = deskName(c.id), I = dn ? prodInfo(dn) : {x: {}, issues: [], crops: []}, x = I.x, ty = HTYPE[c.r] || 'उत्पाद', dev = t => /[ऀ-ॿ]/.test(t || '');
+  const pests = [...new Set(I.issues.map(z => hiName(z.hi) || z.en))];   /* cure first, then what it prevents */
+  const crops = [...new Set((I.crops.length ? I.crops.map(z => hiCrop(z.ck)) : c.crops.map(hiCropEn)))];
+  const pk = uniqPk(c).filter(k => k.sp > 1).sort((a, b) => a.sp - b.sp)[0];
+  const dose = x.dose ? hiDose(perAcre(x.dose)) : '', doseA = dose.replace(/\s*प्रति एकड़$/, ''), pump = x.pump ? hiDose(x.pump) : '';
+  const about = [];
+  let first = `${c.n}${c.b && c.b !== 'Others' ? ' (' + c.b + ')' : ''} एक ${ty} है${c.tech && c.r !== 'seed' && c.r !== 'combo_kit' && !dev(c.tech) && c.tech.length < 90 && /[\d%+]/.test(c.tech) ? ' जिसमें ' + c.tech + ' है' : ''}।`;
+  if (c.r === 'combo_kit' && c.tech) first += ` इस किट में ${c.tech} शामिल हैं।`;
+  about.push(first + (dev(c.tag) && c.tag.length > 20 && c.tag !== c.sd ? ' ' + c.tag.replace(/[।.!]?\s*$/, '।') : ''));
+  if (pests.length) about.push(`यह ${hiList(pests, 6)} पर असरदार है।`);
+  else if (x.use && dev(x.use)) about.push(x.use);
+  if (crops.length) about.push(c.r === 'seed' ? `यह ${hiList(crops, 3)} की बुवाई के लिए है।${pk ? ` पैक: ${hiDose(pk.pk)}।` : ''}` : `इसका इस्तेमाल ${hiList(crops, 8)} में होता है।`);
+  if (dose) about.push(`मात्रा: एक एकड़ में ${doseA}${x.m === 'spray' ? ' 150–200 लीटर पानी में घोलकर छिड़काव करें' : x.m === 'soil' ? ' मिट्टी, रेत या खाद में मिलाकर डालें या सिंचाई के साथ दें' : x.m === 'trap' ? ' खेत में बराबर दूरी पर लगाएं' : ''}।${pump ? ` 15 लीटर के पंप में लगभग ${pump} डालें।` : ''}`);
+  else if (c.dose && dev(c.dose)) about.push('मात्रा: ' + c.dose);
+  const ben = c.ben.filter(dev).map(b => { const m = b.match(/^([^:：]{3,60})[:：]\s*(.+)$/); return m ? [m[1].trim(), m[2].trim()] : ['', b] });
+  (HBEN[c.r] || []).forEach(b => { if (ben.length < 2) ben.push(b) });
+  if (pests.length > 1) ben.push([c.r === 'fungicide' ? 'कई रोगों पर असरदार' : ['insecticide', 'acaricide'].includes(c.r) ? 'कई कीटों पर असरदार' : 'कई समस्याओं पर असरदार', hiList(pests, 7) + ' पर काम करता है।']);
+  if (dose && pk) ben.push(['कम मात्रा, सही खर्च', `${dose} लगती है। ${hiDose(pk.pk)} का पैक ₹${Math.round(pk.sp).toLocaleString('en-IN')} में आता है।`]);
+  else if (pk && cMrp(c) > cPrice(c)) ben.push(['बचत', `MRP ₹${Math.round(cMrp(c)).toLocaleString('en-IN')} पर ${Math.round(100 - cPrice(c) / cMrp(c) * 100)}% की छूट।`]);
+  if (crops.length > 2 && !pests.length) ben.push(['कई फसलों में उपयोगी', hiList(crops, 6) + ' में इस्तेमाल होता है।']);
+  return HIC[c.id] = {about, ben: ben.slice(0, 6), auto: true};
+}
+const hiBlocks = (c, short) => { const h = hiAbout(c), ab = short ? h.about.slice(0, 1) : h.about, bn = short ? h.ben.slice(0, 3) : h.ben;
+  return `<div class="cps hiab" lang="hi"><span class="sl">इस उत्पाद के बारे में</span>${ab.map(t => `<p>${esc(t)}</p>`).join('')}</div>
+   ${bn.length ? `<div class="cps hiab" lang="hi"><span class="sl">मुख्य फायदे</span><ol class="hib">${bn.map(([t, d]) => `<li>${t ? `<b>${esc(t)}:</b> ` : ''}${esc(d)}</li>`).join('')}</ol></div>` : ''}` };
+
 /* short summary, shown when a recommended product is clicked */
 let PEEK = null;
 function peek() {
@@ -2490,6 +2559,7 @@ function peek() {
      <div class="rm">${esc([c && c.b, x.tech || (c && c.tech)].filter(Boolean).join(' · '))}</div>
      <div class="cpp" style="margin-top:4px">${pr ? `<b class="num">${rupee(pr)}</b>${(() => { const k = pks.find(z => z.sp === pr); return k ? `${k.mrp > k.sp ? ` <s class="muted num">${rupee(k.mrp)}</s>` : ''} <span class="rm">per ${esc(k.pk)}</span>` : '' })()}` : '<span class="muted">Not sold by Gramik</span>'}</div></div></div>
    ${c && c.sd ? `<p class="pkt">${esc(c.sd)}</p>` : ''}
+   ${c ? hiBlocks(c, true) : ''}
    <dl class="advd">${r && r.reasons && r.reasons.length ? `<dt>Why now</dt><dd>${r.reasons.slice(0, 2).map(z => esc(z.text)).join('<br>')}</dd>` : ''}
     ${dose ? `<dt>Dose</dt><dd><b>${esc(dose)}</b>${x.pump ? ` · ${esc(x.pump)} per pump` : ''}${f && f.acres ? `<div class="rm">${esc(f.acres)} acre${f.acres == 1 ? '' : 's'} → ${Math.max(1, Math.ceil(f.acres))} pack${Math.ceil(f.acres) > 1 ? 's' : ''}</div>` : ''}</dd>` : ''}
     ${x.m ? `<dt>Method</dt><dd>${esc(METHOD[x.m] || x.m)}</dd>` : ''}
