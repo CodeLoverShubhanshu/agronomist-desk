@@ -13,5 +13,5 @@ module.exports = route(async (req, res) => {
      FROM users u LEFT JOIN desk_state s ON s.user_id = u.id WHERE u.role = 'agronomist' ORDER BY u.name`);
   res.setHeader('Cache-Control', 'no-store');
   send(res, 200, { at: new Date().toISOString(), agronomists: rows.map(r => Object.assign(publicUser(r), {
-    saved_at: r.saved_at, orders: (r.report && r.report.orders) || [], farmers: (r.report && r.report.farmers) || [], calls: (r.report && r.report.calls) || [] })) });
+    saved_at: r.saved_at, orders: (r.report && r.report.orders) || [], farmers: (r.report && r.report.farmers) || [], calls: (r.report && r.report.calls) || [], uploads: (r.report && r.report.uploads) || [], followups: (r.report && r.report.followups) || [] })) });
 });
