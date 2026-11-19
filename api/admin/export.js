@@ -9,7 +9,7 @@ module.exports = route(async (req, res) => {
   const keyOk = want.length >= 24 && key.length === want.length && crypto.timingSafeEqual(Buffer.from(key), Buffer.from(want));
   if (!keyOk) { const me = await requireUser(req, res, 'admin'); if (!me) return }
   const { rows } = await query(
-    `SELECT u.*, s.report, s.updated_at AS saved_at, s.state->'ord' AS ord, s.state->'prof' AS prof, s.state->'crops' AS crops
+    `SELECT u.*, s.report, s.updated_at AS saved_at, s.state->'prof' AS prof, s.state->'crops' AS crops, s.state->'prof' AS prof, s.state->'crops' AS crops
      FROM users u LEFT JOIN desk_state s ON s.user_id = u.id WHERE u.role = 'agronomist' ORDER BY u.name`);
   res.setHeader('Cache-Control', 'no-store');
   send(res, 200, { at: new Date().toISOString(), agronomists: rows.map(r => Object.assign(publicUser(r), {
