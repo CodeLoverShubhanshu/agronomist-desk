@@ -1275,6 +1275,16 @@ const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 ['fup', 'cattle', 'rating', 'ord', 'disp', 'basket', 'seen', 'prof', 'myo', 'extraDisc'].forEach(k => { if (!isObj(S[k])) S[k] = {} });
 ['newFup', 'log', 'newOrders', 'sent', 'uploads', 'undecided'].forEach(k => { S[k] = Array.isArray(S[k]) ? S[k].filter(isObj) : [] });
 S.newFup = S.newFup.filter(x => x.f && x.id); S.uploads = S.uploads.filter(u => u.id && Array.isArray(u.rows) && Array.isArray(u.farmers)); S.log = S.log.filter(x => x.f && x.d); S.newOrders = S.newOrders.filter(x => x.id && x.f && Array.isArray(x.items));
+/* One order ID = one order. An exact copy saved twice is dropped; a different order that reused an ID gets the next free ID (nothing is lost). */
+(function dedupeOrders() {
+  const seen = new Map(), same = (a, b) => a.f === b.f && a.date === b.date && JSON.stringify(a.items.map(x => [x[0], x[1]])) === JSON.stringify(b.items.map(x => [x[0], x[1]])), keep = [];
+  S.newOrders.forEach(o => { const was = seen.get(o.id); if (!was) { seen.set(o.id, o); keep.push(o); return }
+    if (same(was, o)) return;
+    const old = o.id; o.id = nextOid(keep.concat(S.newOrders)); seen.set(o.id, o); keep.push(o);
+    if (S.ord[old] && !S.ord[o.id]) S.ord[o.id] = Object.assign({}, S.ord[old]);
+    S.log.forEach(l => { if (l.f === o.f && l.d === o.date && typeof l.note === 'string' && l.note.includes(old)) l.note = l.note.split(old).join(o.id) }) });
+  if (keep.length !== S.newOrders.length || keep.some((o, i) => o !== S.newOrders[i])) S.newOrders = keep;
+})();
 Object.keys(S.prof).forEach(k => { if (!isObj(S.prof[k])) delete S.prof[k] });
 /* more than one crop per farmer: crop 1 = list / crop details, crop 2+ in S.crops[farmer]; S.cropSel[farmer] = crop shown (0 = crop 1) */
 if (!isObj(S.crops)) S.crops = {}; if (!isObj(S.cropSel)) S.cropSel = {};
@@ -1538,7 +1548,10 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 
 /* ================= orders ================= */
 const OPEN = ['Placed', 'Confirmed', 'Manifested', 'Out for delivery', 'Rescheduled'];
-function allOrders() { return [...OPS.ORDERS, ...S.newOrders].map(o => Object.assign({}, o, S.ord[o.id] || {})) }
+function nextOid(list) { const pre = 'GO-' + window.__BOOT.owner.id + '-', used = new Set((list || S.newOrders).map(o => o.id));
+  let n = Math.max(48299, ...(list || S.newOrders).map(o => String(o.id).startsWith(pre) ? +String(o.id).slice(pre.length) || 0 : 0)) + 1;
+  while (used.has(pre + n)) n++; return pre + n }
+function allOrders() { const m = new Map(); [...OPS.ORDERS, ...S.newOrders].forEach(o => m.set(o.id, o)); return [...m.values()].map(o => Object.assign({}, o, S.ord[o.id] || {})) }   /* each order ID once */
 const oval = o => o.items.reduce((s, x) => s + lineAmt(x), 0) * (1 - (o.disc || 0) / 100);
 function oflags(o, all) {
   const out = [], st = OPS.STORES[o.store];
@@ -1559,7 +1572,8 @@ function histOf(f) {
   const past = (OPS.HIST[f.id] || []).map(o => Object.assign({src: 'lens'}, o));
   const sys = allOrders().filter(o => o.f === f.id && !OPEN.includes(o.status)).map(o => ({id: o.id, date: o.delivered || o.date, status: o.status, note: o.note, src: 'desk',
     lines: o.items.map(x => ({p: x[0], q: x[1], amt: lineAmt(x) * (1 - (o.disc || 0) / 100), kind: kindOf(x[0])}))}));
-  return [...past, ...sys].sort((a, b) => b.date.localeCompare(a.date));
+  const sids = new Set(sys.map(o => o.id));
+  return [...past.filter(o => !o.id || !sids.has(o.id)), ...sys].sort((a, b) => b.date.localeCompare(a.date));
 }
 function boughtOf(f) {
   const m = {};
@@ -2794,7 +2808,8 @@ function myOrders() {
   const mine = (OPS.MYORD || []).map(o => Object.assign({}, o, {date: addDays(TODAY, -o.dAgo)}));
   const fresh = allOrders().map(o => ({id: o.id, fid: o.f, kind: 'FARMER', items: o.items, date: o.date, time: '', source: 'EXOTEL_OUTGOING',
     status: o.status, pay: o.status === 'Delivered' ? 'Paid' : o.status === 'Returned' ? 'Refunded' : 'Unpaid', disc: o.disc || 0, isNew: S.newOrders.some(n => n.id === o.id), reason: o.note, dAgo: diff(o.date, TODAY)}));
-  return [...fresh, ...mine].map(o => Object.assign(o, S.myo && S.myo[o.id] || {}, {
+  const fids = new Set(fresh.map(o => o.id));
+  return [...fresh, ...mine.filter(o => !fids.has(o.id))].map(o => Object.assign(o, S.myo && S.myo[o.id] || {}, {
     who: o.fid && FM[o.fid] ? FM[o.fid].short : o.name, amt: o.items.reduce((t, x) => t + lineAmt(x), 0) * (1 - (o.disc || 0) / 100)}))
     .sort((a, b) => b.date.localeCompare(a.date) || (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) || (b.time || '').localeCompare(a.time || ''));
 }
@@ -3145,7 +3160,7 @@ function confirmResched() {
 const CB_TIMES = ['9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM'];
 function createOrder(f, lines, pref, urgent) {
   const sub = lines.reduce((s, [p, n]) => s + price(p) * n, 0), dsc = discount(f, sub), sid0 = storeOf(f), st = OPS.STORES[sid0] || OPS.STORES.LKO;
-  const sid = st.load >= 90 && st.alt ? st.alt : sid0, oid = 'GO-' + window.__BOOT.owner.id + '-' + (48300 + S.newOrders.length);
+  const sid = st.load >= 90 && st.alt ? st.alt : sid0, oid = nextOid();
   S.newOrders.push({id: oid, f: f.id, date: TODAY, items: priced(lines), status: 'Placed', store: OPS.STORES[sid] ? sid : 'LKO', pref: pref || null, urgent: !!urgent, urgentWhy: '', disc: dsc.r, approval: false, fromCall: true});
   return oid;
 }
@@ -3256,7 +3271,7 @@ function noAnswer() {
 }
 /* ================= After calls: where each call ended up ================= */
 function vAfter() {
-  const fromCall = allOrders().filter(o => o.fromCall || S.newOrders.some(n => n.id === o.id)), samples = allOrders().filter(o => !fromCall.includes(o) && OPEN.includes(o.status));
+  const all = allOrders(), fromCall = all.filter(o => o.fromCall || S.newOrders.some(n => n.id === o.id)), callIds = new Set(fromCall.map(o => o.id)), samples = all.filter(o => !callIds.has(o.id) && OPEN.includes(o.status));
   const ords = [...fromCall.sort((a, b) => b.date.localeCompare(a.date)), ...samples];
   const cbs = allFup().sort((a, b) => a.due.localeCompare(b.due) || (Date.parse('2000/1/1 ' + (a.time || '11:59 PM')) - Date.parse('2000/1/1 ' + (b.time || '11:59 PM'))));
   const und = S.undecided.filter(u => !u.closed && FM[u.f]).sort((a, b) => (a.ni - b.ni) || String(a.back).localeCompare(String(b.back)));
@@ -3433,7 +3448,7 @@ document.addEventListener('click', ev => {
     if (to) { const o = allOrders().find(z => z.id === to), items = o.items.map(x => x.slice());
       lines.forEach(([p, n]) => { const e = items.find(x => x[0] === p); if (e) e[1] += n; else items.push([p, n, price(p)]) });
       S.ord[to] = Object.assign(S.ord[to] || {}, {items, pref: pref || o.pref, urgent: urg || o.urgent}); toast('Added to ' + to);
-    } else { const sid0 = storeOf(f), st = OPS.STORES[sid0], sid = st.load >= 90 && st.alt ? st.alt : sid0, oid = 'GO-' + window.__BOOT.owner.id + '-' + (48300 + S.newOrders.length);
+    } else { const sid0 = storeOf(f), st = OPS.STORES[sid0], sid = st.load >= 90 && st.alt ? st.alt : sid0, oid = nextOid();
       S.newOrders.push({id: oid, f: f.id, date: TODAY, items: priced(lines), status: 'Placed', store: sid, pref, urgent: urg, urgentWhy: '', disc: dsc.r + ex, approval: dsc.r + ex > dsc.cap, fromCall: CALLING === f.id});
       toast(oid + ' created' + (sid !== sid0 ? ', routed to ' + OPS.STORES[sid].name : '')) }
     if (CALLING === f.id) { const last = S.newOrders[S.newOrders.length - 1]; S.callOrder = {f: f.id, id: to || (last && last.id)} }
@@ -3527,7 +3542,7 @@ document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === 
 function deskReport() {
   const nm = id => FM[id] ? FM[id].short : '', ph = id => FM[id] ? FM[id].phone : '';
   const Q = callQueue(), fu = allFup();
-  const orders = S.newOrders.map(o0 => { const o = Object.assign({}, o0, S.ord[o0.id] || {});
+  const orders = [...new Map(S.newOrders.map(o => [o.id, o])).values()].map(o0 => { const o = Object.assign({}, o0, S.ord[o0.id] || {});
     return {id: o.id, f: o.f, name: nm(o.f), phone: ph(o.f), date: o.date, status: o.status, store: o.store, disc: o.disc || 0, urgent: !!o.urgent, approval: !!o.approval, fromCall: !!o.fromCall,
       items: o.items.map(x => [x[0], x[1], Math.round(lineAmt(x))]), value: Math.round(oval(o))} });
   return {

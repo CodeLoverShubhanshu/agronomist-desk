@@ -202,7 +202,7 @@ function vCalls() {
 }
 
 /* ---------- orders ---------- */
-function orderRows() { return rows('orders').filter(o => inPer(o.date) && qMatch(o.name, o.phone, o.id, o.ag.name, (o.items || []).map(i => i[0]).join(' '))).sort((a, b) => String(b.date).localeCompare(String(a.date))) }
+function orderRows() { const seen = new Set(); return rows('orders').filter(o => { const k = o.ag.id + '|' + o.id; if (seen.has(k)) return false; seen.add(k); return true }).filter(o => inPer(o.date) && qMatch(o.name, o.phone, o.id, o.ag.name, (o.items || []).map(i => i[0]).join(' '))).sort((a, b) => String(b.date).localeCompare(String(a.date))) }
 function vOrders() {
   const L = orderRows(), live = L.filter(o => !DEAD.includes(o.status));
   return `${head('Orders from calls', 'Orders placed on the agronomist desks · ' + perLabel())}
