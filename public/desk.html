@@ -3337,7 +3337,9 @@ function needCall(fid) { if (!FM[fid] || CALLING === fid) return; if (CALLING &&
 /* only three call outcomes on screen: Callback, Undecided, Order placed. Not reachable shows under Callback, Not interested under Undecided */
 const outMain = o => o === 'Not reachable' ? 'Callback' : o === 'Not interested' ? 'Undecided' : o === 'Ordered' ? 'Order placed' : o || '';
 const outSub = l => !l ? '' : l.out === 'Not reachable' ? 'Not reachable · ' + ((typeof BUSY_WHY !== 'undefined' && BUSY_WHY.find(r => String(l.note || '').startsWith(r))) || 'no answer') : l.out === 'Not interested' ? 'Not interested · closed' : '';
-const outHtml = l => l.ch === 'Note' ? `<span class="rm">${esc(l.out || 'Note')}</span>` : `<b>${esc(outMain(l.out))}</b>${outSub(l) ? ` <span class="osub">(${esc(outSub(l))})</span>` : ''}`;
+/* a "Details updated" note shows under the outcome of the call it was made on (the farmer's next call outcome) */
+const noteLink = l => { if (l.out === 'Order edited') return {out: 'Ordered'}; const i = S.log.indexOf(l); if (i < 0) return null; for (let j = i + 1; j < S.log.length; j++) { const x = S.log[j]; if (x.f === l.f && x.ch === 'Call') return x } return null };
+const outHtml = l => l.ch === 'Note' ? (() => { const k = noteLink(l); return k ? `<b>${esc(outMain(k.out))}</b> <span class="osub">(${esc(l.out || 'Details updated')})</span>` : `<span class="rm">${esc(l.out || 'Note')} · no call outcome yet</span>` })() : `<b>${esc(outMain(l.out))}</b>${outSub(l) ? ` <span class="osub">(${esc(outSub(l))})</span>` : ''}`;
 function addLog(e) { const n = new Date(), l = Object.assign({d: TODAY, by: 'Agronomist', hr: n.getHours(), at: n.toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}, e);
   if (l.sec && noTalk(l)) { l.ring = l.sec; delete l.sec }   /* the farmer never came on the line: no talk time, kept only as ringing time */
   S.log.push(l) }

@@ -135,7 +135,10 @@ const agById = id => AGS().find(a => String(a.id) === String(id));
 const pick = () => AGS().filter(a => !AG || String(a.id) === AG);
 /* desks not refreshed yet still send detail edits as "Resolved" calls: show them as notes, never as calls */
 const fixRes = c => c && c.out === 'Resolved' ? Object.assign({}, c, /^Order .* edited/.test(c.note || '') ? {ch: 'Note', out: 'Order edited', topic: 'Order'} : {ch: 'Note', out: 'Details updated', topic: 'Farmer details'}) : c;
-const rows = key => pick().flatMap(a => ((a.report && a.report[key]) || []).map(x => Object.assign({ag: a}, key === 'calls' ? fixRes(x) : x)));
+/* a "Details updated" note belongs to the call it was made on: link it to that farmer's next call outcome */
+function linkNotes(list) { list.forEach((c, i) => { if (c.ch !== 'Note') return; if (c.out === 'Order edited') { c.link = {out: 'Ordered'}; return }
+  for (let j = i + 1; j < list.length; j++) { const x = list[j]; if (x.f === c.f && x.ch === 'Call') { c.link = x; return } } }); return list }
+const rows = key => pick().flatMap(a => { const L = ((a.report && a.report[key]) || []).map(x => Object.assign({ag: a}, key === 'calls' ? fixRes(x) : x)); return key === 'calls' ? linkNotes(L) : L });
 const qMatch = (...xs) => !Q || xs.some(x => String(x || '').toLowerCase().includes(Q.toLowerCase()));
 const isCall = c => c.ch === 'Call' && c.out !== 'Resolved';
 const connected = c => c.out !== 'Not reachable';
@@ -165,7 +168,9 @@ const who = (n, ph) => `<div class="who"><b>${esc(n || 'Farmer')}</b><span class
 const BUSYR = ['Busy, asked to call later', "Didn't pick up", 'Switched off / not reachable', 'Call cut / network issue'];
 const outMain = o => o === 'Not reachable' ? 'Callback' : o === 'Not interested' ? 'Undecided' : o === 'Ordered' ? 'Order placed' : o || '';
 const outSub = c => !c ? '' : c.out === 'Not reachable' ? 'Not reachable · ' + (BUSYR.find(r => String(c.note || '').startsWith(r)) || 'no answer') : c.out === 'Not interested' ? 'Not interested · closed' : '';
-const outCell = c => c.ch === 'Note' ? `<span class="rm">${esc(c.out || 'Note')}</span>` : `${chip(c.out === 'Ordered' ? 'ok' : outMain(c.out) === 'Callback' ? 'blue' : outMain(c.out) === 'Undecided' ? 'warm' : 'violet', outMain(c.out) || '–')}${outSub(c) ? `<div class="rm" style="font-size:12px;margin-top:2px">${esc(outSub(c))}</div>` : ''}`;
+const noteSub = c => (c.out || 'Note') + (c.note ? ' · ' + String(c.note).replace(/^Order GO-[\w-]+ edited: /, '').slice(0, 70) : '');
+const outCell = c => c.ch === 'Note' ? (c.link ? `${chip(c.link.out === 'Ordered' ? 'ok' : outMain(c.link.out) === 'Callback' ? 'blue' : 'warm', outMain(c.link.out))}<div class="rm" style="font-size:12px;margin-top:2px">${esc(noteSub(c))}</div>`
+    : `<span class="rm">${esc(c.out || 'Note')} · no call outcome yet</span>`) : `${chip(c.out === 'Ordered' ? 'ok' : outMain(c.out) === 'Callback' ? 'blue' : outMain(c.out) === 'Undecided' ? 'warm' : 'violet', outMain(c.out) || '–')}${outSub(c) ? `<div class="rm" style="font-size:12px;margin-top:2px">${esc(outSub(c))}</div>` : ''}`;
 const outChip = o => chip(o === 'Ordered' ? 'ok' : o === 'Not reachable' ? 'hot' : o === 'Callback' ? 'blue' : o === 'Undecided' ? 'warm' : o === 'Not interested' ? '' : 'violet', o || '–');
 
 /* ---------- overview ---------- */
@@ -204,7 +209,7 @@ function vOverview() {
 }
 
 /* ---------- calls ---------- */
-function callRows() { return rows('calls').filter(c => inPer(c.d) && (!OUTF || (c.ch === 'Note' ? c.out : outMain(c.out)) === OUTF) && qMatch(c.name, c.phone, c.note, c.topic, c.ag.name)).sort((a, b) => (b.d + (b.hr ?? 0)).localeCompare(a.d + (a.hr ?? 0)) || String(b.at).localeCompare(String(a.at))) }
+function callRows() { return rows('calls').filter(c => inPer(c.d) && (!OUTF || (c.ch === 'Note' ? (OUTF === 'Details updated' ? c.out === 'Details updated' : !!c.link && outMain(c.link.out) === OUTF) : outMain(c.out) === OUTF)) && qMatch(c.name, c.phone, c.note, c.topic, c.ag.name)).sort((a, b) => (b.d + (b.hr ?? 0)).localeCompare(a.d + (a.hr ?? 0)) || String(b.at).localeCompare(String(a.at))) }
 function vCalls() {
   const L = callRows(), outs = ['Callback', 'Undecided', 'Order placed', 'Details updated'];
   return `${head('Calls and contacts', 'Every call, visit and WhatsApp logged on the desks · ' + perLabel())}
@@ -375,7 +380,7 @@ function csv(kind) {
     H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Outcome detail', 'Call time (sec)', 'Call time', 'Note',
       'Land size (acres)', 'Priority', 'No. of crops', 'Crop names', 'Date of sowing', 'Uploaded list', 'List uploaded on', 'List source', 'Farmer latest outcome', 'Farmer latest outcome detail'];
     R = callRows().map(c => { const f = FMAP.get(c.ag.id + '|' + c.f), cs = crops(f).filter(x => x.crop), land = cs.filter(x => !fut(x)).reduce((t, x) => t + (+x.acres || 0), 0) || (f && f.acres) || '';
-      return [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, isCall(c) ? outMain(c.out) : c.out, isCall(c) ? outSub(c) : '', csec(c) || '', csec(c) ? talk(csec(c)) : '', c.note,
+      return [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, isCall(c) ? outMain(c.out) : c.link ? outMain(c.link.out) : 'No call outcome yet', isCall(c) ? outSub(c) : noteSub(c), csec(c) || '', csec(c) ? talk(csec(c)) : '', c.note,
         land, (f && f.pri) || '', cs.length || '', cs.map(x => x.crop + (x.variety ? ' (' + x.variety + ')' : '') + (fut(x) ? ' - future' : '')).join('; '),
         cs.map(x => x.sow ? (cs.length > 1 ? x.crop + ': ' : '') + x.sow + (fut(x) ? ' (planned)' : '') : '').filter(Boolean).join('; '),
         (f && f.list) || '', f && f.listAt ? String(f.listAt).slice(0, 10) : '', (f && f.listSrc) || '', tag(LAST.get(c.ag.id + '|' + c.f)), outSub(LAST.get(c.ag.id + '|' + c.f))] }) }
