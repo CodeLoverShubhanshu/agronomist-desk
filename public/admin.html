@@ -100,6 +100,7 @@ details.danger{border-top:1px dashed var(--line);padding-top:10px}details.danger
   <main id="view"><div class="load">Loading agronomist data…</div></main>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
+<script src="chat.js"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -126,7 +127,7 @@ async function api(path, opt = {}) {
 
 /* ---------- state ---------- */
 let DATA = null, USERS = [], VIEW = 'overview', PER = '7', AG = '', Q = '', OUTF = '', EDIT = null, NEWU = false, MSG = null;
-const TABS = [['overview', 'Overview'], ['calls', 'Calls'], ['orders', 'Orders'], ['farmers', 'Farmers'], ['lists', 'Call lists'], ['callbacks', 'Callbacks'], ['team', 'Agronomists']];
+const TABS = [['overview', 'Overview'], ['calls', 'Calls'], ['orders', 'Orders'], ['farmers', 'Farmers'], ['lists', 'Call lists'], ['callbacks', 'Callbacks'], ['chat', 'Team chat'], ['team', 'Agronomists']];
 const inPer = d => { if (!d) return false; d = String(d).slice(0, 10); if (PER === 'all') return true; if (PER === 'today') return d === TODAY; return d > addDays(TODAY, -Number(PER)) && d <= TODAY };
 const perLabel = () => ({today: 'today', '7': 'last 7 days', '30': 'last 30 days', all: 'all time'})[PER];
 const AGS = () => (DATA ? DATA.agronomists : []);
@@ -385,10 +386,11 @@ function render() {
   if (!DATA) return;
   $('today').textContent = new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'});
   $('who').textContent = DATA.me.name;
-  const badge = {team: USERS.filter(u => u.role === 'agronomist' && u.active).length, callbacks: AGS().reduce((t, a) => t + ((a.report && a.report.queue && a.report.queue.overdue) || 0), 0)};
+  const badge = {team: USERS.filter(u => u.role === 'agronomist' && u.active).length, callbacks: AGS().reduce((t, a) => t + ((a.report && a.report.queue && a.report.queue.overdue) || 0), 0), chat: window.GDChat ? GDChat.unread() : 0};
   $('tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab" type="button" data-tab="${k}"${VIEW === k ? ' aria-current="page"' : ''}>${l}${badge[k] ? `<b>${badge[k]}</b>` : ''}</button>`).join('');
   const y = window.scrollY, foc = document.activeElement && document.activeElement.id, pos = foc === 'q' ? document.activeElement.selectionStart : null;
-  $('view').innerHTML = ({overview: vOverview, calls: vCalls, orders: vOrders, farmers: vFarmers, lists: vLists, callbacks: vCallbacks, team: vTeam})[VIEW]();
+  $('view').innerHTML = ({overview: vOverview, calls: vCalls, orders: vOrders, farmers: vFarmers, lists: vLists, callbacks: vCallbacks, team: vTeam, chat: () => '<section class="card" id="chatroot" style="margin-top:14px"></section>'})[VIEW]();
+  if (window.GDChat) { if (VIEW === 'chat') GDChat.mount($('chatroot')); else GDChat.unmount() }
   if (foc === 'q' && $('q')) { $('q').focus(); try { $('q').setSelectionRange(pos, pos) } catch (e) {} window.scrollTo(0, y) }
 }
 async function load(quiet) {
@@ -438,6 +440,8 @@ $('pwBtn').onclick = async () => {
     try { await api('/api/me', {method: 'POST', body: JSON.stringify({current: fm.c.value, next: fm.n.value})}); w.remove(); toast('Password changed') } catch (x) { er.textContent = x.message; er.hidden = false } };
 };
 load();
+/* team chat: unread count on the tab */
+if (window.GDChat) { GDChat.onChange(() => { try { const b = document.querySelector('.tab[data-tab="chat"]'); if (b) { const n = GDChat.unread(); b.innerHTML = 'Team chat' + (n ? `<b>${n}</b>` : '') } } catch (e) {} }); GDChat.start() }
 setInterval(() => { if (!document.hidden && !EDIT && !NEWU && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) load(true) }, 60000);
 </script>
 </body>

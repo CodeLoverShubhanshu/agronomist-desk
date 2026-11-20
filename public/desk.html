@@ -1246,6 +1246,7 @@ button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:p
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 </script>
+<script src="chat.js"></script>
 <script type="text/plain" id="deskMain">'use strict';
 /* ================= basics ================= */
 const ENG = POP.create(D), PR = D.PR;
@@ -1618,7 +1619,7 @@ let STG = null;
 let FPOP = '', FUP2 = '';
 let WXOPEN = false, MORE = new Set(), HOWALL = false, HOWL = 'hing', HOWFULL = false;
 let VIEW = 'today', CUR = null, FTAB = 'crop', DFILT = 'all', OPEN_FORM = null, FSEARCH = '', FDIST = '', FCROP = '';
-const NAV = [['today', 'Today'], ['stores', 'Dark stores'], ['farmers', 'Farmers'], ['after', 'After calls']];
+const NAV = [['today', 'Today'], ['stores', 'Dark stores'], ['farmers', 'Farmers'], ['after', 'After calls'], ...(window.GDChat && !(window.__BOOT && window.__BOOT.readOnly) ? [['chat', 'Team chat']] : [])];
 function counts() {
   const fu = allFup(), ord = allOrders(), od = fu.filter(x => x.due < TODAY).length;
   const watch = ord.filter(o => OPEN.includes(o.status) && (o.urgent || oflags(o, ord).some(x => x[0] === 'hot'))).length;
@@ -1638,7 +1639,7 @@ function openCall(id) {
   go('farmer', id, 'crop');
 }
 function rail() {
-  const c = counts(), badge = {today: [callQueue().filter(r => r.st !== 'done').length, c.od ? 'hot' : ''], after: [c.fu, c.od ? 'hot' : ''], farmers: [c.need, '']};
+  const c = counts(), badge = {today: [callQueue().filter(r => r.st !== 'done').length, c.od ? 'hot' : ''], after: [c.fu, c.od ? 'hot' : ''], farmers: [c.need, ''], chat: [window.GDChat ? GDChat.unread() : 0, 'hot']};
   $('rail').innerHTML = NAV.map(([k, l]) => { const bd = badge[k]; const cur = VIEW === k || (VIEW === 'farmer' && k === 'farmers');
     return `<button class="nb" type="button" data-go="${k}"${cur ? ' aria-current="page"' : ''}>${l}${bd && bd[0] ? `<b class="${bd[1]}">${bd[0]}</b>` : ''}</button>` }).join('') +
     `<button class="meb" type="button" data-go="me"${VIEW === 'me' ? ' aria-current="page"' : ''}><span class="av">${initials(ME.name)}</span><span><b>My profile</b><small>${esc(ME.name)}</small></span></button>`;
@@ -1657,7 +1658,8 @@ function render() {
 function renderPage() {
   topbar(); rail();
   const v = $('view');
-  v.innerHTML = VIEW === 'today' ? vToday() : VIEW === 'farmers' ? vFarmers() : VIEW === 'farmer' ? vFarmer() : VIEW === 'me' ? vMe() : VIEW === 'after' ? vAfter() : VIEW === 'stores' ? vStores() : vToday();
+  v.innerHTML = VIEW === 'today' ? vToday() : VIEW === 'farmers' ? vFarmers() : VIEW === 'farmer' ? vFarmer() : VIEW === 'me' ? vMe() : VIEW === 'after' ? vAfter() : VIEW === 'stores' ? vStores() : VIEW === 'chat' ? '<section class="card" id="chatroot"></section>' : vToday();
+  if (window.GDChat) { if (VIEW === 'chat') GDChat.mount($('chatroot')); else GDChat.unmount() }
   if (VIEW === 'farmer' && PLANG === 'hi') { v.setAttribute('lang', 'hi'); try { hindiize(v) } catch (e) { console.error('hindi', e) } } else v.removeAttribute('lang');
   $('fab').hidden = VIEW !== 'farmer';
   if (VIEW === 'farmer') $('fab').textContent = 'Products for ' + FM[CUR].short.split(' ')[0];
@@ -3604,6 +3606,9 @@ function deskReport() {
 }
 
 seedTodayList();
+/* team chat: unread count on the menu, and a short note when someone writes while the agronomist is on another page */
+if (window.GDChat && !window.__BOOT.readOnly) { GDChat.onChange(() => { try { rail() } catch (e) {} });
+  GDChat.onMessage(m => { if (VIEW !== 'chat') toast('💬 ' + m.name + ': ' + (m.body.length > 60 ? m.body.slice(0, 60) + '…' : m.body) + ' · open Team chat') }); GDChat.start() }
 /* start: through the viewer's update hook when there is one, so a newly published version redraws fully in a page that is already open */
 function start() { try { render() } catch (e) { console.error(e) } }
 try { if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start); else start() } catch (e) { start() }
