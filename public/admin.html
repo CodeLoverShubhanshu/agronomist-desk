@@ -133,9 +133,11 @@ const perLabel = () => ({today: 'today', '7': 'last 7 days', '30': 'last 30 days
 const AGS = () => (DATA ? DATA.agronomists : []);
 const agById = id => AGS().find(a => String(a.id) === String(id));
 const pick = () => AGS().filter(a => !AG || String(a.id) === AG);
-const rows = key => pick().flatMap(a => ((a.report && a.report[key]) || []).map(x => Object.assign({ag: a}, x)));
+/* desks not refreshed yet still send detail edits as "Resolved" calls: show them as notes, never as calls */
+const fixRes = c => c && c.out === 'Resolved' ? Object.assign({}, c, /^Order .* edited/.test(c.note || '') ? {ch: 'Note', out: 'Order edited', topic: 'Order'} : {ch: 'Note', out: 'Details updated', topic: 'Farmer details'}) : c;
+const rows = key => pick().flatMap(a => ((a.report && a.report[key]) || []).map(x => Object.assign({ag: a}, key === 'calls' ? fixRes(x) : x)));
 const qMatch = (...xs) => !Q || xs.some(x => String(x || '').toLowerCase().includes(Q.toLowerCase()));
-const isCall = c => c.ch === 'Call';
+const isCall = c => c.ch === 'Call' && c.out !== 'Resolved';
 const connected = c => c.out !== 'Not reachable';
 const NOTALK = /didn.?t\s*(pick|answer|receiv)|switch(ed)?\s*off|swit?ch\s*of|not\s*reach|unreach|call\s*cut|network|coverage|incom+ing\s*(off|band|bnd|nahi|nhi)|no\s*(answer|respon|reply|pick|connect)|not\s*(receiv|reciev|recev|connect|pick|answer|respond)|(call|phone)\s*(nhi|nahi|na|nai)\s*(utha|uth|lag|lg|mil|receiv|connect)|(nhi|nahi|nai)\s*(utha|uthaya|uthate|uthata|lag|lga|lg)|ring\s*(ja|ho)/i;
 const csec = c => c && c.sec && !(c.out === 'Not reachable' && !/^busy/i.test(c.note || '')) && !NOTALK.test(c.note || '') ? c.sec : null;   /* no talk time when the call did not connect */
@@ -143,7 +145,7 @@ const talk = s => !s ? '–' : s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + St
 const hms = s => !s ? '–' : s < 600 ? talk(s) : s < 3600 ? Math.round(s / 60) + ' min' : Math.floor(s / 3600) + 'h ' + Math.round(s % 3600 / 60) + 'm';
 
 function stats(a) {
-  const r = a.report || {}, calls = (r.calls || []).filter(c => isCall(c) && inPer(c.d)), con = calls.filter(connected);
+  const r = a.report || {}, calls = (r.calls || []).map(fixRes).filter(c => isCall(c) && inPer(c.d)), con = calls.filter(connected);
   const ords = (r.orders || []).filter(o => inPer(o.date) && !DEAD.includes(o.status));
   const fs = r.farmers || [], q = r.queue || {};
   const timed = con.filter(c => csec(c)), talkSec = timed.reduce((t, c) => t + csec(c), 0);
@@ -246,7 +248,7 @@ function vFarmers() {
 let LDAY = null;
 const srcChip = s => String(s).split(/,\s*/).filter(Boolean).map(x => `<span class="chip src">${esc(x.replace(/^\w/, c => c.toUpperCase()))}</span>`).join(' ');
 const isConn = c => c.out !== 'Not reachable';
-const isTalk = c => c.ch === 'Call' || c.ch === 'Visit';
+const isTalk = c => (c.ch === 'Call' || c.ch === 'Visit') && c.out !== 'Resolved';
 function listStats(a, list) {
   const r = a.report || {}, D = localISO(list.at), F = new Set(list.fids || []);
   const calls = (r.calls || []).filter(c => F.has(c.f) && isTalk(c) && c.d >= D);
@@ -272,7 +274,7 @@ function vLists() {
   const L = ALL.filter(x => LDAY === 'all' || x.day === LDAY).sort((x, y) => String(y.u.at).localeCompare(String(x.u.at)));
   const T = sumStats(L.map(x => x.s)), dayName = d => d === 'all' ? 'All days' : d === TODAY ? 'Today' : d === addDays(TODAY, -1) ? 'Yesterday' : new Date(d + 'T12:00:00').toLocaleDateString('en-IN', {weekday: 'short', day: 'numeric', month: 'short'});
   const byAg = AGS().map(a => ({a, L: L.filter(x => x.a.id === a.id)})).filter(x => x.L.length).map(x => Object.assign(x, {s: sumStats(x.L.map(y => y.s))}));
-  const OUTC = {Ordered: 'var(--green)', 'Product recommended': '#3E8E5E', Resolved: '#7FB394', Callback: 'var(--blue)', 'Follow-up needed': 'var(--blue)', Undecided: '#D9A11E', 'Not interested': '#B9C6BF', 'Not reachable': 'var(--hot)'};
+  const OUTC = {Ordered: 'var(--green)', 'Product recommended': '#3E8E5E', 'Details updated': '#9AA9A0', Callback: 'var(--blue)', 'Follow-up needed': 'var(--blue)', Undecided: '#D9A11E', 'Not interested': '#B9C6BF', 'Not reachable': 'var(--hot)'};
   const outs = Object.entries(T.outs).sort((x, y) => y[1] - x[1]);
   const bar = (s) => s.farmers ? `<div class="lbar" title="${s.conn} connected · ${s.nr} not reachable · ${s.pending} not called yet"><i style="width:${100 * s.conn / s.farmers}%;background:var(--green)"></i><i style="width:${100 * s.nr / s.farmers}%;background:#E8A15A"></i><i style="width:${100 * s.pending / s.farmers}%;background:#E3E9E5"></i></div>` : '';
   return `<div class="head"><div><h1>Call lists</h1><p>Pick an upload day to see how that day's lists went across all agronomists. Figures follow each farmer from the day the list was uploaded.</p></div></div>

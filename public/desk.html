@@ -1280,6 +1280,7 @@ const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 ['fup', 'cattle', 'rating', 'ord', 'disp', 'basket', 'seen', 'prof', 'myo', 'extraDisc'].forEach(k => { if (!isObj(S[k])) S[k] = {} });
 ['newFup', 'log', 'newOrders', 'sent', 'uploads', 'undecided'].forEach(k => { S[k] = Array.isArray(S[k]) ? S[k].filter(isObj) : [] });
 S.newFup = S.newFup.filter(x => x.f && x.id); S.uploads = S.uploads.filter(u => u.id && Array.isArray(u.rows) && Array.isArray(u.farmers)); S.log = S.log.filter(x => x.f && x.d); S.newOrders = S.newOrders.filter(x => x.id && x.f && Array.isArray(x.items));
+[...S.log, ...(OPS.LOG || [])].forEach(l => { if (l.out === 'Resolved') { const ord = /^Order .* edited/.test(l.note || ''); l.ch = 'Note'; l.out = ord ? 'Order edited' : 'Details updated'; l.topic = ord ? 'Order' : 'Farmer details' } });   /* no "Resolved": detail edits are notes, not calls */
 /* One order ID = one order. An exact copy saved twice is dropped; a different order that reused an ID gets the next free ID (nothing is lost). */
 (function dedupeOrders() {
   const seen = new Map(), same = (a, b) => a.f === b.f && a.date === b.date && JSON.stringify(a.items.map(x => [x[0], x[1]])) === JSON.stringify(b.items.map(x => [x[0], x[1]])), keep = [];
@@ -1676,7 +1677,7 @@ function qShow(h, L, qrow) {
   const vis = open ? L : L.slice(0, QLIM).concat(L.slice(QLIM).filter(r => r.f.id === QOPEN));
   return vis.map(qrow).join('') + `<tr class="qmore"><td colspan="8"><button type="button" class="qmb" data-act="qmore" data-k="${esc(key)}" aria-expanded="${open}">${open ? 'Show fewer' : 'See ' + (L.length - vis.length) + ' more'}${h && !open ? ' in ' + esc(h.split(' · ')[0]) : ''}</button></td></tr>`;
 }
-const CALLED = ['Resolved', 'Product recommended', 'Ordered', 'Follow-up needed', 'Not interested'];
+const CALLED = ['Product recommended', 'Ordered', 'Follow-up needed', 'Not interested'];
 function maskPh(p) { p = String(p || ''); return p.length >= 10 ? '+91 ' + p.slice(0, 2) + '••• ••' + p.slice(-3) : p }
 /* the sample call day: before the shift starts (night, early morning) show the whole sample day so the demo is never empty */
 function demoHour() { const h = new Date().getHours(), sh = (OPS.ME && OPS.ME.shift) || [9, 18]; return h < sh[0] ? 23 : h }
@@ -1820,7 +1821,7 @@ function fupForm(x) {
     <div class="acts" style="margin-top:8px"><button class="btn sm" data-act="fmove" data-id="${x.id}">Reschedule</button><button class="btn ghost sm" data-act="cancel">Cancel</button></div></div>`;
   return '';
 }
-const OUTS = ['Resolved', 'Product recommended', 'Ordered', 'Follow-up needed', 'Not reachable', 'Not interested'];
+const OUTS = ['Product recommended', 'Ordered', 'Follow-up needed', 'Not reachable', 'Not interested'];
 /* the call brief for one farmer: why, what to say, what to recommend, weather */
 function issueHi(text) { const n = norm(text), hit = Object.values(D.I).find(x => norm(x.en) === n); return hit ? hit.hi : text }
 function brief4(r) {
@@ -2070,7 +2071,7 @@ function vFarmer() {
   const dup = OPS.DUP[f.id], fu = fupOf(f.id)[0];
   const body = FTAB === 'orders' ? tOrders(f, ords) : FTAB === 'cattle' ? tCattle(f, cat) : tCrop(f);
   const onCall = CALLING === f.id;
-  return `${onCall ? '' : `<button class="lk" data-act="back" style="margin-bottom:8px">← ${RET && RET.view === 'today' ? 'Back to call queue' : RET && RET.view === 'after' ? 'Back to After calls' : RET && RET.view === 'me' ? 'Back to My profile' : 'All farmers'}</button>`}${onCall ? `<div class="cbcall oncall"><span class="cbdot"></span><div><b>On call with ${esc(f.short)}</b><span class="num">${esc(f.phone)}</span></div><span class="ctm" title="Call time since you clicked Call">⏱ <b class="num" id="calltimer">${CALL_T0 ? clock(Math.round((Date.now() - CALL_T0) / 1000)) : '0:00'}</b></span><button class="btn ghost sm" data-copy="${esc(f.phone)}">Copy number</button><button class="btn sm cbend" data-act="qcomplete">Complete call</button></div>` : ''}
+  return `${onCall ? '' : `<button class="lk" data-act="back" style="margin-bottom:8px">← ${RET && RET.view === 'today' ? 'Back to call queue' : RET && RET.view === 'after' ? 'Back to After calls' : RET && RET.view === 'me' ? 'Back to My profile' : 'All farmers'}</button>`}${onCall ? `<div class="cbcall oncall"><span class="cbdot"></span><div><b>On call with ${esc(f.short)}</b><span class="num">${esc(f.phone)}</span></div>${CALL_T0 ? `<span class="ctm" title="Call time since you clicked Call">⏱ <b class="num" id="calltimer">${clock(Math.round((Date.now() - CALL_T0) / 1000))}</b></span>` : '<span class="ctm">Details saved · complete the call to finish</span>'}<button class="btn ghost sm" data-copy="${esc(f.phone)}">Copy number</button><button class="btn sm cbend" data-act="qcomplete">Complete call</button></div>` : ''}
   <section class="card"><div class="fhead"><div><div class="fnm">${NAMED === f.id ? `<form class="fnmf" id="fnmf"><input type="text" id="fnm-in" value="${esc(f.short)}" maxlength="60" aria-label="Farmer name" autocomplete="off"><button class="btn sm" type="submit">Save</button><button class="btn ghost sm" type="button" data-act="namecancel">Cancel</button></form>`
       : `<h2><button type="button" class="fnbtn" data-act="nameedit" title="Click to edit the farmer's name">${esc(f.short)}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4L6 12.4 3 13l.6-3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="sr">Edit name</span></button></h2>`}<div class="seg3 lang plang nohi" role="group" aria-label="Profile language"><button type="button" data-act="plang" data-k="en" aria-pressed="${PLANG !== 'hi'}">English</button><button type="button" data-act="plang" data-k="hi" aria-pressed="${PLANG === 'hi'}" lang="hi">हिंदी</button></div></div>
     ${LOCED === f.id ? `<form class="locf" id="locf"><label class="field"><span>Village</span><input type="text" id="loc-vil" value="${esc(locv(f.village))}" placeholder="Village / gaon" autocomplete="off"></label>
@@ -3329,6 +3330,9 @@ function copy(text) {
   try { navigator.clipboard.writeText(text).then(done, () => fallback(text)) } catch (e) { fallback(text) }
 }
 function fallback(text) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast('Copied') } catch (e) { toast('Select the text and copy it') } t.remove() }
+/* filling or editing a farmer's details means the agronomist is talking to that farmer: the profile goes into call mode,
+   and the farmer stays in the call queue until Complete call is clicked */
+function needCall(fid) { if (!FM[fid] || CALLING === fid) return; if (CALLING && FM[CALLING]) { toast('Details saved · remember to complete the call with ' + FM[CALLING].short); return } CALLING = fid; QSEL = fid }
 function addLog(e) { const n = new Date(), l = Object.assign({d: TODAY, by: 'Agronomist', hr: n.getHours(), at: n.toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}, e);
   if (l.sec && noTalk(l)) { l.ring = l.sec; delete l.sec }   /* the farmer never came on the line: no talk time, kept only as ringing time */
   S.log.push(l) }
@@ -3382,7 +3386,7 @@ document.addEventListener('click', ev => {
     if (d.add) { S.crops[id] = (S.crops[id] || []).concat([rec]); if (!d.future) S.cropSel[id] = S.crops[id].length } else if (f.cropIdx > 0 && S.crops[id] && S.crops[id][f.cropIdx - 1]) S.crops[id][f.cropIdx - 1] = rec; else S.prof[id] = rec;
     const nf = refit(id); PD = null; OPEN_FORM = null; STG = null;
     const fname = ck ? D.P[ck].crop.split('(')[0].trim() : rec.crop;
-    addLog({f: id, ch: 'Call', topic: 'Crop problem', out: 'Resolved', note: d.future ? 'Future crop added: ' + fname + (vk ? ', ' + vk : '') + ', sowing planned ' + fmt(rec.sow) + ', ' + rec.acres + ' ac'
+    needCall(id); addLog({f: id, ch: 'Note', topic: 'Farmer details', out: 'Details updated', note: d.future ? 'Future crop added: ' + fname + (vk ? ', ' + vk : '') + ', sowing planned ' + fmt(rec.sow) + ', ' + rec.acres + ' ac'
       : (d.add ? 'Crop ' + (nf.cropIdx + 1) + ' added: ' : 'Crop details filled: ') + nf.cropName + (vk ? ', ' + vk : '') + (rec.sow ? ', sown ' + fmt(rec.sow) : '') + ', ' + rec.acres + ' ac'});
     save(); toast(d.future ? 'Future crop saved: ' + fname + ', sowing ' + fmt(rec.sow) + ' · see it in the crop button' : nf.pop.ok ? 'POP plan ready: ' + nf.stageEn : 'Crop saved'); return rerender() }
   if (a === 'mtab') { MY.tab = t.dataset.k; return rerender() }
@@ -3515,7 +3519,7 @@ document.addEventListener('click', ev => {
   if (a === 'oesave') { oeRead(); const o = allOrders().find(z => z.id === id), f = FM[o.f], sub = OE.items.reduce((t2, x) => t2 + lineAmt(x), 0), cap = discount(f, sub).cap;
     const was = o.items.map(([p, q]) => q + ' × ' + p).join(', '), now = OE.items.map(([p, q]) => q + ' × ' + p).join(', ');
     S.ord[id] = Object.assign(S.ord[id] || {}, {items: OE.items.map(x => x.slice()), disc: +OE.disc || 0, approval: (+OE.disc || 0) > cap, store: OE.store, pref: OE.pref || null, urgent: OE.urgent, urgentWhy: OE.urgentWhy, note: OE.note, edited: TODAY});
-    if (was !== now || (o.disc || 0) !== (+OE.disc || 0)) addLog({f: o.f, ch: 'Call', topic: 'Order', out: 'Resolved', note: 'Order ' + id + ' edited: ' + (now || 'products to be confirmed') + (+OE.disc ? ' · ' + OE.disc + '% off' : '')});
+    if (was !== now || (o.disc || 0) !== (+OE.disc || 0)) addLog({f: o.f, ch: 'Note', topic: 'Order', out: 'Order edited', note: 'Order ' + id + ' edited: ' + (now || 'products to be confirmed') + (+OE.disc ? ' · ' + OE.disc + '% off' : '')});
     OE = null; OPEN_FORM = null; save(); toast('Order ' + id + ' updated'); return rerender() }
   if (a === 'osms') { const o = allOrders().find(z => z.id === id), f = FM[o.f];
     const when = o.pref ? fmtHi(o.pref) : null, txt = `नमस्ते ${f.short} जी, आपका ग्रामिक ऑर्डर ${o.id} (${o.items.map(([p, q]) => q + ' ' + p).join(', ')}) ${o.status === 'Rescheduled' ? 'की डिलीवरी की तारीख बदली गई है' : 'दर्ज है'}।${when ? ' डिलीवरी ' + when + ' को या उसके बाद होगी।' : ''} किसी भी सवाल के लिए ग्रामिक से संपर्क करें।`;
@@ -3550,7 +3554,7 @@ document.addEventListener('submit', e => { if (e.target.id !== 'fnmf') return; e
   if (v.length < 2) { toast('Type the farmer’s name'); return }
   NAMED = null; if (v === old) return rerender();
   S.fname[CUR] = v; const nf = refit(CUR);
-  addLog({f: CUR, ch: 'Call', topic: 'Other', out: 'Resolved', note: 'Name corrected from ' + old + ' to ' + nf.short});
+  needCall(CUR); addLog({f: CUR, ch: 'Note', topic: 'Farmer details', out: 'Details updated', note: 'Name corrected from ' + old + ' to ' + nf.short});
   save(); toast('Name saved: ' + nf.short); rerender() });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && PEEK) { PEEK = null; peek(); e.stopImmediatePropagation(); return } }, true);
 document.addEventListener('keydown', e => { if (NAMED && e.key === 'Escape' && e.target && e.target.id === 'fnm-in') { NAMED = null; rerender() } });
@@ -3566,12 +3570,12 @@ document.addEventListener('submit', e => { if (e.target.id !== 'sowf') return; e
   if (d > TODAY) rec.future = true; else delete rec.future;
   if (f.cropIdx > 0) S.crops[CUR][f.cropIdx - 1] = rec; else S.prof[CUR] = rec;
   SOWED = null; STG = null; const nf = refit(CUR);
-  addLog({f: CUR, ch: 'Call', topic: 'Crop problem', out: 'Resolved', note: 'Sowing date changed' + (old ? ' from ' + fmt(old) : '') + ' to ' + fmt(d) + ' (' + nf.cropName + ')'});
+  needCall(CUR); addLog({f: CUR, ch: 'Note', topic: 'Farmer details', out: 'Details updated', note: 'Sowing date changed' + (old ? ' from ' + fmt(old) : '') + ' to ' + fmt(d) + ' (' + nf.cropName + ')'});
   save(); toast((d > TODAY ? 'Sowing planned ' : 'Sowing date ') + fmt(d) + (d > TODAY ? '' : nf.pop.ok ? ' · ' + nf.stageEn : '')); rerender() });
 document.addEventListener('submit', e => { if (e.target.id !== 'locf') return; e.preventDefault();
   const f = FM[CUR], v = id => ($(id).value || '').trim(), pin = v('loc-pin').replace(/\D/g, '');
   if (pin && pin.length !== 6) { toast('Pincode needs 6 digits'); return }
-  S.loc[CUR] = {village: v('loc-vil'), district: v('loc-dist'), pin}; LOCED = null; refit(CUR); save();
+  S.loc[CUR] = {village: v('loc-vil'), district: v('loc-dist'), pin}; LOCED = null; refit(CUR); needCall(CUR); save();
   const nf = FM[CUR]; toast('Location saved' + (nf.place.ok ? ' · weather by ' + (nf.place.by === 'district' ? 'district ' + nf.place.district : 'pincode ' + nf.place.pin) : ' · add district or pincode for weather')); rerender() });
 document.addEventListener('keydown', e => { if (e.target && e.target.id === 'pf-cropq' && e.key === 'Enter') { e.preventDefault(); const L = cropFind(e.target.value); if (L.length) cropPick(L[0]) }
   if (CROPDD && e.key === 'Escape') { CROPDD = false; rerender(); const b = $('pf-cropbtn'); if (b) b.focus() } });
