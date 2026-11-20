@@ -1557,7 +1557,7 @@ function nextOid(list) { const pre = 'GO-' + window.__BOOT.owner.id + '-', used 
   while (used.has(pre + n)) n++; return pre + n }
 /* talk time of the call that placed an order; shown only when the admin views a desk */
 function orderSec(id) { const o = S.newOrders.find(x => x.id === id); if (!o) return null; if (o.sec) return o.sec;
-  const l = S.log.find(x => x.f === o.f && x.d === o.date && x.out === 'Ordered' && x.sec); return l ? l.sec : null }
+  const l = S.log.find(x => x.f === o.f && x.d === o.date && x.out === 'Ordered' && tsec(x)); return l ? tsec(l) : null }
 const otalk = id => { const sc = window.__BOOT && window.__BOOT.adminView ? orderSec(id) : null; return sc ? ` <span class="otk" title="Talk time of the call that placed this order (only the admin sees this)">⏱ ${talk(sc)}</span>` : '' };
 function allOrders() { const m = new Map(); [...OPS.ORDERS, ...S.newOrders].forEach(o => m.set(o.id, o)); return [...m.values()].map(o => Object.assign({}, o, S.ord[o.id] || {})) }   /* each order ID once */
 const oval = o => o.items.reduce((s, x) => s + lineAmt(x), 0) * (1 - (o.disc || 0) / 100);
@@ -1682,7 +1682,7 @@ function todayCalls() {
   const hrNow = demoHour(), act = (OPS.MYACT || []).filter(a => a.kind === 'call' && a.dAgo === 0 && a.hr <= hrNow);
   const logs = S.log.filter(l => l.d === TODAY && (l.ch === 'Call'));
   const calls = [...act.map(a => ({hr: a.hr, out: a.out, topic: a.topic, secs: a.secs})),
-    ...logs.map(l => ({hr: l.hr ?? hrNow, out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: l.sec || 0}))];
+    ...logs.map(l => ({hr: l.hr ?? hrNow, out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: tsec(l) || 0}))];
   const con = calls.filter(c => c.out === 'Connected'), talk = con.filter(c => c.secs);
   return {calls, con, avg: talk.length ? Math.round(talk.reduce((t, c) => t + c.secs, 0) / talk.length) : 0, hrNow};
 }
@@ -1692,13 +1692,19 @@ function callLog() {
   (OPS.MYACT || []).filter(a => a.kind === 'call' && a.dAgo === 0).forEach((a, i) => { if (a.hr > hrNow) return;
     out.push({hr: a.hr, min: (i * 13) % 60, f: FM[ids[(i * 7) % ids.length]], out: a.out, topic: a.topic || '', secs: a.secs || 0, sample: true}) });
   S.log.filter(l => l.d === TODAY && l.ch === 'Call').forEach(l => { const [h, m] = (l.at || '').replace(/\s?[AP]M/i, '').split(':').map(Number);
-    const pm = /PM/i.test(l.at || '') && h !== 12 ? 12 : 0; out.push({hr: l.hr ?? hrNow, min: isNaN(m) ? 0 : m, f: FM[l.f], out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: l.sec || 0, note: l.note, result: l.out}) });
+    const pm = /PM/i.test(l.at || '') && h !== 12 ? 12 : 0; out.push({hr: l.hr ?? hrNow, min: isNaN(m) ? 0 : m, f: FM[l.f], out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: tsec(l) || 0, note: l.note, result: l.out}) });
   return out.filter(c => c.f).sort((a, b) => (b.hr * 60 + b.min) - (a.hr * 60 + a.min));
 }
 const hm = c => ((c.hr % 12) || 12) + ':' + String(c.min).padStart(2, '0') + (c.hr < 12 ? ' AM' : ' PM');
 let QK = null, CALLING = null;
 /* call timing: starts when the agronomist clicks Call, stops when the call is completed; saved on that call as sec (seconds) */
 let CALL_T0 = 0, CALL_TICK = null, TT = {type: 'all', day: 'all'};
+/* calls where the farmer did not pick up or the call did not connect have no talk time and never count in averages:
+   Didn't pick up, Switched off / not reachable, Call cut / network issue, or a remark that says so (e.g. 'call not receive', 'not connect', 'nhi uthaya').
+   'Busy, asked to call later' keeps its time: the farmer answered. */
+const NOTALK = /didn.?t\s*(pick|answer|receiv)|switch(ed)?\s*off|swit?ch\s*of|not\s*reach|unreach|call\s*cut|network|coverage|incom+ing\s*(off|band|bnd|nahi|nhi)|no\s*(answer|respon|reply|pick|connect)|not\s*(receiv|reciev|recev|connect|pick|answer|respond)|(call|phone)\s*(nhi|nahi|na|nai)\s*(utha|uth|lag|lg|mil|receiv|connect)|(nhi|nahi|nai)\s*(utha|uthaya|uthate|uthata|lag|lga|lg)|ring\s*(ja|ho)/i;
+const noTalk = l => !!l && (l.out === 'Not reachable' && !/^busy/i.test(l.note || '') || NOTALK.test(l.note || ''));
+const tsec = l => l && l.sec && !noTalk(l) ? l.sec : null;
 const talk = s => s == null ? '' : s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
 const clock = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 function callSecs(fid) { if (!CALL_T0 || CALLING !== fid) return null; const s = Math.min(3600, Math.max(1, Math.round((Date.now() - CALL_T0) / 1000))); CALL_T0 = 0; clearInterval(CALL_TICK); try { sessionStorage.removeItem('gd_call') } catch (e) {} return s }
@@ -1728,7 +1734,7 @@ function tileList(k, ctx) {
     return head('Callbacks booked today', L.length ? 'Next at ' + L[0].time : '', ['Time', 'Farmer', 'What to talk about', ''],
       L.map((x, i) => { const f = FM[x.f]; return `<tr class="qrow" data-act="qsel" data-id="${f.id}" tabindex="0"><td><b class="num" style="color:var(--blue)">${esc(x.time)}</b>${i === 0 ? '<div class="rm">Next</div>' : ''}</td><td>${who(f)}</td><td>${esc(x.why)}</td><td class="n"><button class="btn sm" data-act="qsel" data-id="${f.id}">Open brief</button></td></tr>` }), 'No callbacks booked for today.') }
   if (k === 'talk') {   /* every timed call, filtered by what kind of call it was and by day */
-    const ALL = S.log.filter(l => l.ch === 'Call' && l.sec && FM[l.f]).map(l => ({l, f: FM[l.f], secs: l.sec, d: l.d, out: l.out}));
+    const ALL = S.log.filter(l => l.ch === 'Call' && tsec(l) && FM[l.f]).map(l => ({l, f: FM[l.f], secs: tsec(l), d: l.d, out: l.out}));
     const TYPES = [['all', 'All calls', () => true], ['con', 'Connected', c => c.out !== 'Not reachable'], ['cb', 'Callbacks', c => c.out === 'Callback'], ['und', 'Undecided', c => c.out === 'Undecided']];
     const yday = addDays(TODAY, -1), DAYS = [TODAY, yday, 'all'], dayOk = c => TT.day === 'all' || c.d === TT.day, typ = TYPES.find(t => t[0] === TT.type) || TYPES[0];
     const L = ALL.filter(c => dayOk(c) && typ[2](c)).sort((x, y) => y.d.localeCompare(x.d) || (y.l.hr || 0) - (x.l.hr || 0) || y.secs - x.secs);
@@ -2046,7 +2052,7 @@ function renderFView() {
      <div class="rm">${esc([locv(f.village), locv(f.district)].filter(Boolean).join(', ') || 'Village not filled')}${locv(f.pin) ? ' · ' + esc(f.pin) : ''} · <span class="num">${esc(f.phone)}</span> · ${f.acres || 0} acres · rating ${r.sc} (${esc(r.band)})</div></div>
      <div class="acts"><button class="btn ghost sm" type="button" data-act="fvopen" data-id="${f.id}">Open full profile</button><button class="btn ghost sm" type="button" data-act="fvclose">Close</button></div></div>
    <section class="osec"><h4>Crops</h4><ul class="fvl">${crops}</ul>${notesBox(f.id, true)}</section>
-   <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · <b>${esc(l.out || '')}</b>${l.topic ? ' · ' + esc(l.topic) : ''}${l.sec ? ` · <span class="tt">⏱ ${talk(l.sec)}</span>` : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
+   <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · <b>${esc(l.out || '')}</b>${l.topic ? ' · ' + esc(l.topic) : ''}${tsec(l) ? ` · <span class="tt">⏱ ${talk(tsec(l))}</span>` : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
    <section class="osec"><h4>Orders</h4>${ords.length ? `<ul class="fvl">${ords.map(o => `<li><b>${esc(o.id)}</b>${otalk(o.id)} · ${fmt(o.date)} · <span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span><div>${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') + ' · <b class="num">' + rupee(oval(o)) + '</b>' : '<span class="muted">Products to be confirmed by the service team</span>'}</div></li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No orders yet.</p>'}</section>
    <section class="osec"><h4>Callbacks</h4>${fu.length ? `<ul class="fvl">${fu.map(x => `<li><span class="chip ${x.due < TODAY ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span> ${esc(x.why || '')}${x.notify ? ' · reminder on' : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No callback set.</p>'}</section></div>`;
   if (PLANG === 'hi') { el.setAttribute('lang', 'hi'); try { hindiize(el) } catch (e) {} } else el.removeAttribute('lang');
@@ -2092,7 +2098,7 @@ function cropSwitch(f) {
 /* weather and crop advice: one line when closed, the full forecast and advice when opened */
 function recentLog(f) {
   const L = logsOf(f.id).slice(0, 3); if (!L.length) return '';
-  return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · <b>' + esc(l.out) + '</b>' : ''}${l.sec ? ` · <span class="tt">⏱ ${talk(l.sec)}</span>` : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
+  return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · <b>' + esc(l.out) + '</b>' : ''}${tsec(l) ? ` · <span class="tt">⏱ ${talk(tsec(l))}</span>` : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
 }
 function wxCard(f, info, days, w) {
   if (!info.ok && !WXOPEN) WXOPEN = true;
@@ -3321,7 +3327,9 @@ function copy(text) {
   try { navigator.clipboard.writeText(text).then(done, () => fallback(text)) } catch (e) { fallback(text) }
 }
 function fallback(text) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast('Copied') } catch (e) { toast('Select the text and copy it') } t.remove() }
-function addLog(e) { const n = new Date(); S.log.push(Object.assign({d: TODAY, by: 'Agronomist', hr: n.getHours(), at: n.toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}, e)) }
+function addLog(e) { const n = new Date(), l = Object.assign({d: TODAY, by: 'Agronomist', hr: n.getHours(), at: n.toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}, e);
+  if (l.sec && noTalk(l)) { l.ring = l.sec; delete l.sec }   /* the farmer never came on the line: no talk time, kept only as ringing time */
+  S.log.push(l) }
 function rerender() { const y = window.scrollY; render(); window.scrollTo(0, y) }
 
 document.addEventListener('click', ev => {
@@ -3579,7 +3587,7 @@ function deskReport() {
     v: 1, at: new Date().toISOString(), today: TODAY,
     farmers: F.filter(f => !f.sample).map(f => ({id: f.id, name: f.short, phone: f.phone, village: f.village, district: f.district, pin: f.pin, crop: f.cropName, variety: f.variety || '',
       sow: f.sowISO || '', acres: f.acres, stage: f.stageEn, crops: f.cropList.map(c => cropLbl(c) + (c.sow && c.sow > TODAY ? ' (future, sowing ' + fmt(c.sow) + ')' : '')), cropNo: f.cropIdx + 1, pop: !!f.pop.ok, missing: f.pop.missing || [], list: f.list || '', filled: !!f.filled})),
-    calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f), sec: l.sec || null})),
+    calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f), sec: tsec(l)})),
     orders,
     uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed, by: u.by && u.by.role === 'admin' ? 'admin' : 'agronomist', source: u.source || '', fids: u.rows.map(x => x.fid)})),
     followups: fu.map(x => ({f: x.f, name: nm(x.f), phone: ph(x.f), due: x.due, time: x.time || '', why: x.why || ''})),
