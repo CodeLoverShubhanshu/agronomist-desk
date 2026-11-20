@@ -161,6 +161,11 @@ function agSel() { return `<select id="agf" aria-label="Agronomist"><option valu
 function filters(extra = '', csv = '') { return `<div class="filters">${agSel()}<input type="search" id="q" placeholder="Search farmer, phone, product…" value="${esc(Q)}">${extra}<span class="sp"></span>${csv ? `<button class="btn ghost" type="button" data-csv="${csv}">Download CSV</button>` : ''}</div>` }
 function head(t, p) { return `<div class="head"><div><h1>${t}</h1><p>${p}</p></div>${perSeg()}</div>` }
 const who = (n, ph) => `<div class="who"><b>${esc(n || 'Farmer')}</b><span class="num">${esc(ph || '')}</span></div>`;
+/* only three call outcomes: Callback, Undecided, Order placed. Not reachable sits under Callback, Not interested under Undecided */
+const BUSYR = ['Busy, asked to call later', "Didn't pick up", 'Switched off / not reachable', 'Call cut / network issue'];
+const outMain = o => o === 'Not reachable' ? 'Callback' : o === 'Not interested' ? 'Undecided' : o === 'Ordered' ? 'Order placed' : o || '';
+const outSub = c => !c ? '' : c.out === 'Not reachable' ? 'Not reachable · ' + (BUSYR.find(r => String(c.note || '').startsWith(r)) || 'no answer') : c.out === 'Not interested' ? 'Not interested · closed' : '';
+const outCell = c => c.ch === 'Note' ? `<span class="rm">${esc(c.out || 'Note')}</span>` : `${chip(c.out === 'Ordered' ? 'ok' : outMain(c.out) === 'Callback' ? 'blue' : outMain(c.out) === 'Undecided' ? 'warm' : 'violet', outMain(c.out) || '–')}${outSub(c) ? `<div class="rm" style="font-size:12px;margin-top:2px">${esc(outSub(c))}</div>` : ''}`;
 const outChip = o => chip(o === 'Ordered' ? 'ok' : o === 'Not reachable' ? 'hot' : o === 'Callback' ? 'blue' : o === 'Undecided' ? 'warm' : o === 'Not interested' ? '' : 'violet', o || '–');
 
 /* ---------- overview ---------- */
@@ -199,14 +204,14 @@ function vOverview() {
 }
 
 /* ---------- calls ---------- */
-function callRows() { return rows('calls').filter(c => inPer(c.d) && (!OUTF || c.out === OUTF) && qMatch(c.name, c.phone, c.note, c.topic, c.ag.name)).sort((a, b) => (b.d + (b.hr ?? 0)).localeCompare(a.d + (a.hr ?? 0)) || String(b.at).localeCompare(String(a.at))) }
+function callRows() { return rows('calls').filter(c => inPer(c.d) && (!OUTF || (c.ch === 'Note' ? c.out : outMain(c.out)) === OUTF) && qMatch(c.name, c.phone, c.note, c.topic, c.ag.name)).sort((a, b) => (b.d + (b.hr ?? 0)).localeCompare(a.d + (a.hr ?? 0)) || String(b.at).localeCompare(String(a.at))) }
 function vCalls() {
-  const L = callRows(), outs = [...new Set(rows('calls').map(c => c.out).filter(Boolean))].sort();
+  const L = callRows(), outs = ['Callback', 'Undecided', 'Order placed', 'Details updated'];
   return `${head('Calls and contacts', 'Every call, visit and WhatsApp logged on the desks · ' + perLabel())}
   <section class="card" style="margin-top:14px">${filters(`<select id="outf" aria-label="Outcome"><option value="">All outcomes</option>${outs.map(o => `<option${o === OUTF ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`, 'calls')}
    ${(() => { const tc = L.filter(c => isCall(c) && connected(c) && csec(c)), ts = tc.reduce((t, c) => t + csec(c), 0); return `<p class="rm" style="margin:0 0 6px">${L.length} entries · ${L.filter(isCall).length} calls · ${L.filter(c => isCall(c) && connected(c)).length} connected${tc.length ? ` · talk time ${hms(ts)} on ${tc.length} timed calls, avg ${talk(Math.round(ts / tc.length))}` : ''}</p>` })()}
    ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Agronomist</th><th>Farmer</th><th>Channel</th><th>Topic</th><th>Outcome</th><th class="n">Call time</th><th>Note</th></tr></thead><tbody>
-   ${L.slice(0, 600).map(c => `<tr><td class="num">${fmtD(c.d)}<div class="rm">${esc(c.at)}</div></td><td>${esc(c.ag.name)}</td><td>${who(c.name, c.phone)}</td><td>${esc(c.ch)}</td><td>${esc(c.topic)}</td><td>${outChip(c.out)}</td><td class="n num">${csec(c) ? talk(csec(c)) : '<span class="rm">–</span>'}</td><td style="max-width:360px">${esc(c.note)}</td></tr>`).join('')}</tbody></table></div>${L.length > 600 ? '<p class="rm">Showing the latest 600. Download the CSV for all.</p>' : ''}` : '<p class="empty">No calls in this period.</p>'}</section>`;
+   ${L.slice(0, 600).map(c => `<tr><td class="num">${fmtD(c.d)}<div class="rm">${esc(c.at)}</div></td><td>${esc(c.ag.name)}</td><td>${who(c.name, c.phone)}</td><td>${esc(c.ch)}</td><td>${esc(c.topic)}</td><td>${outCell(c)}</td><td class="n num">${csec(c) ? talk(csec(c)) : '<span class="rm">–</span>'}</td><td style="max-width:360px">${esc(c.note)}</td></tr>`).join('')}</tbody></table></div>${L.length > 600 ? '<p class="rm">Showing the latest 600. Download the CSV for all.</p>' : ''}` : '<p class="empty">No calls in this period.</p>'}</section>`;
 }
 
 /* ---------- orders ---------- */
@@ -294,7 +299,8 @@ function vLists() {
     <div class="kpi b"><span>Callbacks open</span><b class="num">${T.cbs}</b><small>${T.und} undecided</small></div>
    </div>
    <div style="margin-top:16px">${bar(T)}<div class="lg"><span><i style="background:var(--green)"></i>Connected ${T.conn}</span><span><i style="background:#E8A15A"></i>Not reachable ${T.nr}</span><span><i style="background:#E3E9E5"></i>Not called yet ${T.pending}</span></div></div>
-   ${outs.length ? `<div style="margin-top:14px"><div class="rm" style="margin-bottom:6px">Latest call outcome of each farmer called</div><div class="omix">${outs.map(([o, n]) => `<span class="om"><i style="background:${OUTC[o] || '#9AA8A1'}"></i>${esc(o)} <b class="num">${n}</b><em class="num">${pc(n, T.called)}</em></span>`).join('')}</div></div>` : ''}
+   ${outs.length ? `<div style="margin-top:14px"><div class="rm" style="margin-bottom:6px">Latest call outcome of each farmer called</div><div class="omix">${(() => { const g = {}, sub = {}; outs.forEach(([o, n]) => { const m = outMain(o); g[m] = (g[m] || 0) + n; if (o === 'Not reachable' || o === 'Not interested') sub[m] = [o, n] });
+      return Object.entries(g).sort((x, y) => y[1] - x[1]).map(([m, n]) => `<span class="om"><i style="background:${m === 'Order placed' ? 'var(--green)' : m === 'Callback' ? 'var(--blue)' : m === 'Undecided' ? '#D9A11E' : '#9AA8A1'}"></i>${esc(m)} <b class="num">${n}</b><em class="num">${pc(n, T.called)}</em>${sub[m] ? `<em class="num" style="display:block">incl. ${esc(sub[m][0])} ${sub[m][1]}</em>` : ''}</span>`).join('') })()}</div></div>` : ''}
   </section>
   <section class="card" style="margin-top:18px"><h2>By agronomist <small>${esc(dayName(LDAY))}</small></h2>
    <div class="tw"><table><thead><tr><th>Agronomist</th><th class="n">Lists</th><th class="n">Farmers</th><th class="n">Called</th><th class="n">Connected</th><th class="n">Not reachable</th><th class="n">Orders</th><th class="n">Value</th><th class="n">Conversion</th><th class="n">POPs</th><th class="n">Not called yet</th><th>Progress</th><th>Last saved</th></tr></thead><tbody>
@@ -363,17 +369,16 @@ function csv(kind) {
     const FMAP = new Map(), LAST = new Map();
     AGS().forEach(a => { ((a.report && a.report.farmers) || []).forEach(f => FMAP.set(a.id + '|' + f.id, f));
       ((a.report && a.report.calls) || []).filter(isCall).forEach(c => { const k = a.id + '|' + c.f, p = LAST.get(k); if (!p || String(c.d) >= String(p.d)) LAST.set(k, c) }) });
-    const tag = c => !c ? '' : c.out === 'Ordered' ? 'Order placed' : c.out === 'Callback' ? 'Callback' : c.out === 'Undecided' ? 'Undecided' : c.out === 'Not interested' ? 'Not interested'
-      : c.out === 'Not reachable' ? (/^busy/i.test(c.note || '') ? 'Busy - call later' : 'Not connected') : c.out || '';
+    const tag = c => !c ? '' : outMain(c.out);
     const crops = f => f && f.cropsD && f.cropsD.length ? f.cropsD : f ? [{crop: f.crop || '', variety: f.variety || '', sow: f.sow || '', acres: f.acres || null}] : [];
     const fut = c => c.sow && c.sow > TODAY;
-    H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Tag', 'Call time (sec)', 'Call time', 'Note',
-      'Land size (acres)', 'Priority', 'No. of crops', 'Crop names', 'Date of sowing', 'Uploaded list', 'List uploaded on', 'List source', 'Farmer latest tag'];
+    H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Outcome detail', 'Call time (sec)', 'Call time', 'Note',
+      'Land size (acres)', 'Priority', 'No. of crops', 'Crop names', 'Date of sowing', 'Uploaded list', 'List uploaded on', 'List source', 'Farmer latest outcome', 'Farmer latest outcome detail'];
     R = callRows().map(c => { const f = FMAP.get(c.ag.id + '|' + c.f), cs = crops(f).filter(x => x.crop), land = cs.filter(x => !fut(x)).reduce((t, x) => t + (+x.acres || 0), 0) || (f && f.acres) || '';
-      return [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, isCall(c) ? tag(c) : '', csec(c) || '', csec(c) ? talk(csec(c)) : '', c.note,
+      return [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, isCall(c) ? outMain(c.out) : c.out, isCall(c) ? outSub(c) : '', csec(c) || '', csec(c) ? talk(csec(c)) : '', c.note,
         land, (f && f.pri) || '', cs.length || '', cs.map(x => x.crop + (x.variety ? ' (' + x.variety + ')' : '') + (fut(x) ? ' - future' : '')).join('; '),
         cs.map(x => x.sow ? (cs.length > 1 ? x.crop + ': ' : '') + x.sow + (fut(x) ? ' (planned)' : '') : '').filter(Boolean).join('; '),
-        (f && f.list) || '', f && f.listAt ? String(f.listAt).slice(0, 10) : '', (f && f.listSrc) || '', tag(LAST.get(c.ag.id + '|' + c.f))] }) }
+        (f && f.list) || '', f && f.listAt ? String(f.listAt).slice(0, 10) : '', (f && f.listSrc) || '', tag(LAST.get(c.ag.id + '|' + c.f)), outSub(LAST.get(c.ag.id + '|' + c.f))] }) }
   if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Talk time (sec)', 'Talk time', 'Status', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.sec || '', o.sec ? talk(o.sec) : '', o.status, o.urgent ? 'yes' : '']) }
   if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
   if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Source', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];

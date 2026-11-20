@@ -1067,6 +1067,7 @@ button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:p
 .tt{color:var(--deep);font-weight:600;white-space:nowrap}
 .qdays.tt{margin:8px 0 4px}
 .otk{display:inline-block;font-size:12px;font-weight:600;color:var(--deep);background:#EEF5F0;border-radius:6px;padding:1px 6px;margin-left:4px;white-space:nowrap}
+.osub{font-size:12px;color:var(--ink-2,#5b6b62);font-weight:400}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1738,18 +1739,18 @@ function tileList(k, ctx) {
       L.map((x, i) => { const f = FM[x.f]; return `<tr class="qrow" data-act="qsel" data-id="${f.id}" tabindex="0"><td><b class="num" style="color:var(--blue)">${esc(x.time)}</b>${i === 0 ? '<div class="rm">Next</div>' : ''}</td><td>${who(f)}</td><td>${esc(x.why)}</td><td class="n"><button class="btn sm" data-act="qsel" data-id="${f.id}">Open brief</button></td></tr>` }), 'No callbacks booked for today.') }
   if (k === 'talk') {   /* every timed call, filtered by what kind of call it was and by day */
     const ALL = S.log.filter(l => l.ch === 'Call' && tsec(l) && FM[l.f]).map(l => ({l, f: FM[l.f], secs: tsec(l), d: l.d, out: l.out}));
-    const TYPES = [['all', 'All calls', () => true], ['con', 'Connected', c => c.out !== 'Not reachable'], ['cb', 'Callbacks', c => c.out === 'Callback'], ['und', 'Undecided', c => c.out === 'Undecided']];
+    const TYPES = [['all', 'All calls', () => true], ['con', 'Connected', c => c.out !== 'Not reachable'], ['cb', 'Callbacks', c => outMain(c.out) === 'Callback'], ['und', 'Undecided', c => outMain(c.out) === 'Undecided']];
     const yday = addDays(TODAY, -1), DAYS = [TODAY, yday, 'all'], dayOk = c => TT.day === 'all' || c.d === TT.day, typ = TYPES.find(t => t[0] === TT.type) || TYPES[0];
     const L = ALL.filter(c => dayOk(c) && typ[2](c)).sort((x, y) => y.d.localeCompare(x.d) || (y.l.hr || 0) - (x.l.hr || 0) || y.secs - x.secs);
     const sum = L.reduce((t, c) => t + c.secs, 0), avg = L.length ? Math.round(sum / L.length) : 0;
     const tag = s => s < 180 ? chip('warm', 'Short') : s > 360 ? chip('blue', 'Long') : chip('ok', 'In goal');
-    const outc = o => chip(o === 'Ordered' ? 'ok' : o === 'Not reachable' ? 'hot' : o === 'Callback' ? 'blue' : o === 'Undecided' ? 'warm' : 'mute', o);
+    const outc = (o, l) => chip(o === 'Ordered' ? 'ok' : outMain(o) === 'Callback' ? 'blue' : outMain(o) === 'Undecided' ? 'warm' : 'mute', outMain(o)) + (outSub(l) ? `<div class="rm" style="font-size:12px">${esc(outSub(l))}</div>` : '');
     const bar = `<div class="qdays tt" role="group" aria-label="Kind of call"><span class="sl">Calls</span>${TYPES.map(([key, lab, fn]) => `<button type="button" class="qdb" data-act="ttype" data-k="${key}" aria-pressed="${typ[0] === key}">${lab} <b>${ALL.filter(c => dayOk(c) && fn(c)).length}</b></button>`).join('')}</div>
       <div class="qdays tt" role="group" aria-label="Day"><span class="sl">Day</span>${DAYS.map(d => `<button type="button" class="qdb" data-act="tday" data-k="${d}" aria-pressed="${TT.day === d}">${d === 'all' ? 'All days' : d === TODAY ? 'Today' : 'Yesterday'} <b>${ALL.filter(c => (d === 'all' || c.d === d) && typ[2](c)).length}</b></button>`).join('')}</div>`;
     const sub = L.length ? `${L.length} call${L.length > 1 ? 's' : ''} · avg ${mmss(avg)} · total ${mmss(sum)} · ${L.filter(c => c.secs < 180).length} short · ${L.filter(c => c.secs > 360).length} long · goal 3–6 min` : 'Goal 3–6 min';
     return `<div class="qkp"><div class="qkph"><h3>Talk time per call</h3><span class="rm">${sub}</span><button class="lk" data-act="qk" data-k="${k}">Close</button></div>${bar}
       ${L.length ? `<div class="tw2"><table class="qkt"><thead><tr><th>Day</th><th>Farmer</th><th>Outcome</th><th>Reason / note</th><th class="n">Talk time</th><th></th></tr></thead><tbody>
-      ${L.map(c => `<tr class="qrow" data-act="qsel" data-id="${c.f.id}" tabindex="0"><td class="num">${c.d === TODAY ? 'Today' : c.d === yday ? 'Yesterday' : fmt(c.d)}<div class="rm">${esc(c.l.at || '')}</div></td><td>${who(c.f)}</td><td>${outc(c.out)}</td><td class="rm" style="max-width:320px">${esc(c.l.note || c.l.topic || '')}</td><td class="n num"><b>${mmss(c.secs)}</b></td><td>${tag(c.secs)}</td></tr>`).join('')}</tbody></table></div>`
+      ${L.map(c => `<tr class="qrow" data-act="qsel" data-id="${c.f.id}" tabindex="0"><td class="num">${c.d === TODAY ? 'Today' : c.d === yday ? 'Yesterday' : fmt(c.d)}<div class="rm">${esc(c.l.at || '')}</div></td><td>${who(c.f)}</td><td>${outc(c.out, c.l)}</td><td class="rm" style="max-width:320px">${esc(c.l.note || c.l.topic || '')}</td><td class="n num"><b>${mmss(c.secs)}</b></td><td>${tag(c.secs)}</td></tr>`).join('')}</tbody></table></div>`
         : `<p class="empty">No timed ${typ[0] === 'all' ? '' : typ[1].toLowerCase() + ' '}calls ${TT.day === 'all' ? 'yet' : TT.day === TODAY ? 'today' : 'on ' + fmt(TT.day)}. Calls are timed from Call to Complete call.</p>`}</div>`;
   }
   return '';
@@ -1778,7 +1779,7 @@ function callQueue() {
   const rows = new Map(), fu = allFup(), done = new Set();
   const put = (f, r) => { if (!f) return; const ex = rows.get(f.id); if (ex) { if (r.priShow && !ex.priTxt && ex.st === 'list' && r.st === 'list') { ex.priShow = r.priShow; ex.priTxt = r.priTxt; ex.pri = r.pri } return } rows.set(f.id, Object.assign({f}, r)) };
   (OPS.DONE_TODAY || []).forEach(x => { const f = FM[x.f]; if (f) { done.add(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + x.talk, purpose: x.note, last: 'Today, ' + x.at}) } });
-  S.log.filter(l => l.d === TODAY && ['Call', 'Visit'].includes(l.ch) && l.out !== 'Not reachable' && !(l.cbToday && allFup().some(x => x.f === l.f && x.due === TODAY))).forEach(l => { const f = FM[l.f]; if (f && !done.has(f.id)) { done.add(f.id); rows.delete(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + l.out, purpose: l.note, last: 'Today' + (l.at ? ', ' + l.at : '')}) } });
+  S.log.filter(l => l.d === TODAY && ['Call', 'Visit'].includes(l.ch) && l.out !== 'Not reachable' && !(l.cbToday && allFup().some(x => x.f === l.f && x.due === TODAY))).forEach(l => { const f = FM[l.f]; if (f && !done.has(f.id)) { done.add(f.id); rows.delete(f.id); put(f, {pri: 'med', st: 'done', status: 'Done · ' + outMain(l.out) + (outSub(l) ? ' (' + outSub(l).split(' · ')[0] + ')' : ''), purpose: l.note, last: 'Today' + (l.at ? ', ' + l.at : '')}) } });
   /* Busy / not reachable today with the next call booked for a later day: the farmer leaves today's queue and comes back as a callback on that day */
   const later = new Map(); fu.filter(x => x.due > TODAY).forEach(x => { if (!later.has(x.f) || x.due < later.get(x.f).due) later.set(x.f, x) });
   S.log.filter(l => l.d === TODAY && ['Call', 'Visit'].includes(l.ch) && l.out === 'Not reachable' && later.has(l.f) && !fu.some(x => x.f === l.f && x.due <= TODAY)).forEach(l => { const f = FM[l.f], x = later.get(l.f);
@@ -2055,7 +2056,7 @@ function renderFView() {
      <div class="rm">${esc([locv(f.village), locv(f.district)].filter(Boolean).join(', ') || 'Village not filled')}${locv(f.pin) ? ' · ' + esc(f.pin) : ''} · <span class="num">${esc(f.phone)}</span> · ${f.acres || 0} acres · rating ${r.sc} (${esc(r.band)})</div></div>
      <div class="acts"><button class="btn ghost sm" type="button" data-act="fvopen" data-id="${f.id}">Open full profile</button><button class="btn ghost sm" type="button" data-act="fvclose">Close</button></div></div>
    <section class="osec"><h4>Crops</h4><ul class="fvl">${crops}</ul>${notesBox(f.id, true)}</section>
-   <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · <b>${esc(l.out || '')}</b>${l.topic ? ' · ' + esc(l.topic) : ''}${tsec(l) ? ` · <span class="tt">⏱ ${talk(tsec(l))}</span>` : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
+   <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · ${outHtml(l)}${l.topic ? ' · ' + esc(l.topic) : ''}${tsec(l) ? ` · <span class="tt">⏱ ${talk(tsec(l))}</span>` : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
    <section class="osec"><h4>Orders</h4>${ords.length ? `<ul class="fvl">${ords.map(o => `<li><b>${esc(o.id)}</b>${otalk(o.id)} · ${fmt(o.date)} · <span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span><div>${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') + ' · <b class="num">' + rupee(oval(o)) + '</b>' : '<span class="muted">Products to be confirmed by the service team</span>'}</div></li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No orders yet.</p>'}</section>
    <section class="osec"><h4>Callbacks</h4>${fu.length ? `<ul class="fvl">${fu.map(x => `<li><span class="chip ${x.due < TODAY ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span> ${esc(x.why || '')}${x.notify ? ' · reminder on' : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No callback set.</p>'}</section></div>`;
   if (PLANG === 'hi') { el.setAttribute('lang', 'hi'); try { hindiize(el) } catch (e) {} } else el.removeAttribute('lang');
@@ -2101,7 +2102,7 @@ function cropSwitch(f) {
 /* weather and crop advice: one line when closed, the full forecast and advice when opened */
 function recentLog(f) {
   const L = logsOf(f.id).slice(0, 3); if (!L.length) return '';
-  return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · <b>' + esc(l.out) + '</b>' : ''}${tsec(l) ? ` · <span class="tt">⏱ ${talk(tsec(l))}</span>` : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
+  return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · ' + outHtml(l) : ''}${tsec(l) ? ` · <span class="tt">⏱ ${talk(tsec(l))}</span>` : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
 }
 function wxCard(f, info, days, w) {
   if (!info.ok && !WXOPEN) WXOPEN = true;
@@ -3230,7 +3231,7 @@ function renderOutcome() {
     ${extra}${why}</section>
    <section class="osec"><h4>2 · Rating</h4>${stars('interest', o.interest, 'Interest', 'Asks questions, wants to try products')}${stars('trust', o.trust, 'Trust in Gramik', 'Follows advice, buys again, refers others')}</section>
    ${o.err ? `<p class="note hot">${esc(o.err)}</p>` : ''}
-   <div class="acts"><button class="btn" data-act="osave"${o.kind ? '' : ' disabled'}>Save and complete call</button><button class="btn ghost" data-act="obusy">Busy · call again later</button></div></div>`;
+   <div class="acts"><button class="btn" data-act="osave"${o.kind ? '' : ' disabled'}>Save and complete call</button><button class="btn ghost" data-act="obusy">Not reachable / busy · goes to Callbacks</button></div></div>`;
   el.hidden = false; $('scrim').hidden = false;
 }
 function readOutcomeForm() { const o = OUT, v = id => $(id) ? $(id).value : undefined; if ($('o-cbnotify') && !$('o-cbnotify').disabled) o.cbNotify = $('o-cbnotify').checked;
@@ -3319,9 +3320,9 @@ function vAfter() {
     ${ords.length ? `<ul class="alist">${ords.map(o => { const f = FM[o.f]; return f ? `<li><div>${who(f)}<div class="rw">${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') : '<span class="muted">Products to be confirmed by the service team</span>'}</div><div class="rm num">${esc(o.id)}${otalk(o.id)} · ${fmt(o.date)}${o.items.length ? ' · ' + rupee(oval(o)) : ''}${o.fromCall || S.newOrders.some(n => n.id === o.id) ? '' : ' · ' + 'sample'}</div></div><span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span></li>` : '' }).join('')}</ul>` : '<p class="empty">No orders yet.</p>'}</section>
    <section class="card acol"><div class="ach c"><h3>Callbacks</h3><span>${cbs.length}</span></div><p class="rm">Yours to call back. Due ones are in today's call queue.</p>
     ${cbs.length ? `<ul class="alist">${cbs.map(x => { const f = FM[x.f]; if (!f) return ''; const late = x.due < TODAY;
-      return `<li><div>${who(f)}<div class="rw">${esc(x.why)}</div></div><div class="arr"><span class="chip ${late ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${late ? relDue(x.due) : x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span><div class="acts" style="justify-content:flex-end">${x.due <= TODAY ? `<button class="btn sm" data-act="gocall" data-id="${f.id}">${CALLING === f.id ? 'On call' : 'Call'}</button>` : ''}<button class="btn ghost sm" data-act="resch" data-id="${x.id}">Reschedule</button></div></div></li>` }).join('')}</ul>` : '<p class="empty">No callbacks set.</p>'}</section>
+      return `<li><div>${who(f)}<div class="rw">${esc(x.why)}</div>${BUSY_WHY.includes(x.reason) ? `<div class="rm" style="font-size:12px">${x.reason === BUSY_WHY[0] ? 'Busy · call later' : 'Not reachable · ' + esc(x.reason)}</div>` : ''}</div><div class="arr"><span class="chip ${late ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${late ? relDue(x.due) : x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span><div class="acts" style="justify-content:flex-end">${x.due <= TODAY ? `<button class="btn sm" data-act="gocall" data-id="${f.id}">${CALLING === f.id ? 'On call' : 'Call'}</button>` : ''}<button class="btn ghost sm" data-act="resch" data-id="${x.id}">Reschedule</button></div></div></li>` }).join('')}</ul>` : '<p class="empty">No callbacks set.</p>'}</section>
    <section class="card acol"><div class="ach u"><h3>Undecided</h3><span>${und.length}</span></div><p class="rm">Closed for now. They come back into the call queue on the date shown. Not interested farmers do not come back.</p>
-    ${und.length ? `<ul class="alist">${und.map(u => { const f = FM[u.f]; return `<li><div>${who(f)}<div class="rw">${esc(u.note || u.why || 'Undecided')}</div><div class="rm">${u.ni ? 'Not interested' : 'Undecided'} on ${fmt(u.at)}</div></div>${u.ni ? '<span class="chip hot">Not interested</span>' : `<span class="chip ${u.back <= TODAY ? 'upl' : 'mute'}">${u.back <= TODAY ? 'In queue now' : 'Back ' + fmt(u.back)}</span>`}</li>` }).join('')}</ul>` : '<p class="empty">No undecided farmers.</p>'}</section>
+    ${und.length ? `<ul class="alist">${und.map(u => { const f = FM[u.f]; return `<li><div>${who(f)}<div class="rw">${esc(u.note || u.why || 'Undecided')}</div><div class="rm">${u.ni ? 'Not interested' : 'Undecided'} on ${fmt(u.at)}</div></div>${u.ni ? '<span class="chip hot">Not interested · closed</span>' : `<span class="chip ${u.back <= TODAY ? 'upl' : 'mute'}">${u.back <= TODAY ? 'In queue now' : 'Back ' + fmt(u.back)}</span>`}</li>` }).join('')}</ul>` : '<p class="empty">No undecided farmers.</p>'}</section>
   </div>`;
 }
 /* ================= events ================= */
@@ -3333,6 +3334,10 @@ function fallback(text) { const t = document.createElement('textarea'); t.value 
 /* filling or editing a farmer's details means the agronomist is talking to that farmer: the profile goes into call mode,
    and the farmer stays in the call queue until Complete call is clicked */
 function needCall(fid) { if (!FM[fid] || CALLING === fid) return; if (CALLING && FM[CALLING]) { toast('Details saved · remember to complete the call with ' + FM[CALLING].short); return } CALLING = fid; QSEL = fid }
+/* only three call outcomes on screen: Callback, Undecided, Order placed. Not reachable shows under Callback, Not interested under Undecided */
+const outMain = o => o === 'Not reachable' ? 'Callback' : o === 'Not interested' ? 'Undecided' : o === 'Ordered' ? 'Order placed' : o || '';
+const outSub = l => !l ? '' : l.out === 'Not reachable' ? 'Not reachable · ' + ((typeof BUSY_WHY !== 'undefined' && BUSY_WHY.find(r => String(l.note || '').startsWith(r))) || 'no answer') : l.out === 'Not interested' ? 'Not interested · closed' : '';
+const outHtml = l => l.ch === 'Note' ? `<span class="rm">${esc(l.out || 'Note')}</span>` : `<b>${esc(outMain(l.out))}</b>${outSub(l) ? ` <span class="osub">(${esc(outSub(l))})</span>` : ''}`;
 function addLog(e) { const n = new Date(), l = Object.assign({d: TODAY, by: 'Agronomist', hr: n.getHours(), at: n.toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}, e);
   if (l.sec && noTalk(l)) { l.ring = l.sec; delete l.sec }   /* the farmer never came on the line: no talk time, kept only as ringing time */
   S.log.push(l) }
