@@ -1065,6 +1065,7 @@ button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:p
 .pkc .hiab{margin-top:10px}.pkc .hiab .sl{font-size:12px}
 .ctm{font-size:13px;color:#CFE3D6;white-space:nowrap}.ctm b{color:#fff;font-size:15px}
 .tt{color:var(--deep);font-weight:600;white-space:nowrap}
+.qdays.tt{margin:8px 0 4px}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1692,7 +1693,7 @@ function callLog() {
 const hm = c => ((c.hr % 12) || 12) + ':' + String(c.min).padStart(2, '0') + (c.hr < 12 ? ' AM' : ' PM');
 let QK = null, CALLING = null;
 /* call timing: starts when the agronomist clicks Call, stops when the call is completed; saved on that call as sec (seconds) */
-let CALL_T0 = 0, CALL_TICK = null;
+let CALL_T0 = 0, CALL_TICK = null, TT = {type: 'all', day: 'all'};
 const talk = s => s == null ? '' : s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
 const clock = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 function callSecs(fid) { if (!CALL_T0 || CALLING !== fid) return null; const s = Math.min(3600, Math.max(1, Math.round((Date.now() - CALL_T0) / 1000))); CALL_T0 = 0; clearInterval(CALL_TICK); try { sessionStorage.removeItem('gd_call') } catch (e) {} return s }
@@ -1721,10 +1722,22 @@ function tileList(k, ctx) {
   if (k === 'cb') { const L = ctx.cbs;
     return head('Callbacks booked today', L.length ? 'Next at ' + L[0].time : '', ['Time', 'Farmer', 'What to talk about', ''],
       L.map((x, i) => { const f = FM[x.f]; return `<tr class="qrow" data-act="qsel" data-id="${f.id}" tabindex="0"><td><b class="num" style="color:var(--blue)">${esc(x.time)}</b>${i === 0 ? '<div class="rm">Next</div>' : ''}</td><td>${who(f)}</td><td>${esc(x.why)}</td><td class="n"><button class="btn sm" data-act="qsel" data-id="${f.id}">Open brief</button></td></tr>` }), 'No callbacks booked for today.') }
-  if (k === 'talk') { const L = callLog().filter(c => c.secs).sort((a, b) => b.secs - a.secs);
+  if (k === 'talk') {   /* every timed call, filtered by what kind of call it was and by day */
+    const ALL = S.log.filter(l => l.ch === 'Call' && l.sec && FM[l.f]).map(l => ({l, f: FM[l.f], secs: l.sec, d: l.d, out: l.out}));
+    const TYPES = [['all', 'All calls', () => true], ['con', 'Connected', c => c.out !== 'Not reachable'], ['cb', 'Callbacks', c => c.out === 'Callback'], ['und', 'Undecided', c => c.out === 'Undecided']];
+    const yday = addDays(TODAY, -1), DAYS = [TODAY, yday, 'all'], dayOk = c => TT.day === 'all' || c.d === TT.day, typ = TYPES.find(t => t[0] === TT.type) || TYPES[0];
+    const L = ALL.filter(c => dayOk(c) && typ[2](c)).sort((x, y) => y.d.localeCompare(x.d) || (y.l.hr || 0) - (x.l.hr || 0) || y.secs - x.secs);
+    const sum = L.reduce((t, c) => t + c.secs, 0), avg = L.length ? Math.round(sum / L.length) : 0;
     const tag = s => s < 180 ? chip('warm', 'Short') : s > 360 ? chip('blue', 'Long') : chip('ok', 'In goal');
-    return head('Talk time per call', 'Goal 3–6 min · ' + L.filter(c => c.secs < 180).length + ' short · ' + L.filter(c => c.secs > 360).length + ' long', ['Time', 'Farmer', 'Topic', 'Talk time', ''],
-      L.map(c => `<tr class="qrow" data-act="qsel" data-id="${c.f.id}" tabindex="0"><td class="num">${hm(c)}</td><td>${who(c.f)}</td><td>${esc(c.topic)}</td><td class="n num"><b>${mmss(c.secs)}</b></td><td>${tag(c.secs)}</td></tr>`), 'No timed calls yet today.') }
+    const outc = o => chip(o === 'Ordered' ? 'ok' : o === 'Not reachable' ? 'hot' : o === 'Callback' ? 'blue' : o === 'Undecided' ? 'warm' : 'mute', o);
+    const bar = `<div class="qdays tt" role="group" aria-label="Kind of call"><span class="sl">Calls</span>${TYPES.map(([key, lab, fn]) => `<button type="button" class="qdb" data-act="ttype" data-k="${key}" aria-pressed="${typ[0] === key}">${lab} <b>${ALL.filter(c => dayOk(c) && fn(c)).length}</b></button>`).join('')}</div>
+      <div class="qdays tt" role="group" aria-label="Day"><span class="sl">Day</span>${DAYS.map(d => `<button type="button" class="qdb" data-act="tday" data-k="${d}" aria-pressed="${TT.day === d}">${d === 'all' ? 'All days' : d === TODAY ? 'Today' : 'Yesterday'} <b>${ALL.filter(c => (d === 'all' || c.d === d) && typ[2](c)).length}</b></button>`).join('')}</div>`;
+    const sub = L.length ? `${L.length} call${L.length > 1 ? 's' : ''} · avg ${mmss(avg)} · total ${mmss(sum)} · ${L.filter(c => c.secs < 180).length} short · ${L.filter(c => c.secs > 360).length} long · goal 3–6 min` : 'Goal 3–6 min';
+    return `<div class="qkp"><div class="qkph"><h3>Talk time per call</h3><span class="rm">${sub}</span><button class="lk" data-act="qk" data-k="${k}">Close</button></div>${bar}
+      ${L.length ? `<div class="tw2"><table class="qkt"><thead><tr><th>Day</th><th>Farmer</th><th>Outcome</th><th>Reason / note</th><th class="n">Talk time</th><th></th></tr></thead><tbody>
+      ${L.map(c => `<tr class="qrow" data-act="qsel" data-id="${c.f.id}" tabindex="0"><td class="num">${c.d === TODAY ? 'Today' : c.d === yday ? 'Yesterday' : fmt(c.d)}<div class="rm">${esc(c.l.at || '')}</div></td><td>${who(c.f)}</td><td>${outc(c.out)}</td><td class="rm" style="max-width:320px">${esc(c.l.note || c.l.topic || '')}</td><td class="n num"><b>${mmss(c.secs)}</b></td><td>${tag(c.secs)}</td></tr>`).join('')}</tbody></table></div>`
+        : `<p class="empty">No timed ${typ[0] === 'all' ? '' : typ[1].toLowerCase() + ' '}calls ${TT.day === 'all' ? 'yet' : TT.day === TODAY ? 'today' : 'on ' + fmt(TT.day)}. Calls are timed from Call to Complete call.</p>`}</div>`;
+  }
   return '';
 }
 /* who to call today, and why: overdue and due follow-ups, hot AI-call leads, farmers without POP, must-do items this stage */
@@ -3372,6 +3385,8 @@ document.addEventListener('click', ev => {
   if (a === 'qtab') { QTAB = t.dataset.k; OPEN_FORM = null; return rerender() }
   if (a === 'qmore') { QMORE[t.dataset.k] = !QMORE[t.dataset.k]; return rerender() }
   if (a === 'qday') { QDAY = t.dataset.k; QSEL = null; OPEN_FORM = null; return rerender() }
+  if (a === 'ttype') { TT.type = t.dataset.k; return rerender() }
+  if (a === 'tday') { TT.day = t.dataset.k; return rerender() }
   if (a === 'qtab-overdue' || a === 'qtab-callback') { QTAB = a.slice(5); return rerender() }
   if (a === 'afopen') return afOpen();
   if (a === 'afclose') { AF = null; return renderAF() }
