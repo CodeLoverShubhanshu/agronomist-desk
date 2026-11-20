@@ -1066,6 +1066,7 @@ button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:p
 .ctm{font-size:13px;color:#CFE3D6;white-space:nowrap}.ctm b{color:#fff;font-size:15px}
 .tt{color:var(--deep);font-weight:600;white-space:nowrap}
 .qdays.tt{margin:8px 0 4px}
+.otk{display:inline-block;font-size:12px;font-weight:600;color:var(--deep);background:#EEF5F0;border-radius:6px;padding:1px 6px;margin-left:4px;white-space:nowrap}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1554,6 +1555,10 @@ const OPEN = ['Placed', 'Confirmed', 'Manifested', 'Out for delivery', 'Reschedu
 function nextOid(list) { const pre = 'GO-' + window.__BOOT.owner.id + '-', used = new Set((list || S.newOrders).map(o => o.id));
   let n = Math.max(48299, ...(list || S.newOrders).map(o => String(o.id).startsWith(pre) ? +String(o.id).slice(pre.length) || 0 : 0)) + 1;
   while (used.has(pre + n)) n++; return pre + n }
+/* talk time of the call that placed an order; shown only when the admin views a desk */
+function orderSec(id) { const o = S.newOrders.find(x => x.id === id); if (!o) return null; if (o.sec) return o.sec;
+  const l = S.log.find(x => x.f === o.f && x.d === o.date && x.out === 'Ordered' && x.sec); return l ? l.sec : null }
+const otalk = id => { const sc = window.__BOOT && window.__BOOT.adminView ? orderSec(id) : null; return sc ? ` <span class="otk" title="Talk time of the call that placed this order (only the admin sees this)">⏱ ${talk(sc)}</span>` : '' };
 function allOrders() { const m = new Map(); [...OPS.ORDERS, ...S.newOrders].forEach(o => m.set(o.id, o)); return [...m.values()].map(o => Object.assign({}, o, S.ord[o.id] || {})) }   /* each order ID once */
 const oval = o => o.items.reduce((s, x) => s + lineAmt(x), 0) * (1 - (o.disc || 0) / 100);
 function oflags(o, all) {
@@ -2042,7 +2047,7 @@ function renderFView() {
      <div class="acts"><button class="btn ghost sm" type="button" data-act="fvopen" data-id="${f.id}">Open full profile</button><button class="btn ghost sm" type="button" data-act="fvclose">Close</button></div></div>
    <section class="osec"><h4>Crops</h4><ul class="fvl">${crops}</ul>${notesBox(f.id, true)}</section>
    <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · <b>${esc(l.out || '')}</b>${l.topic ? ' · ' + esc(l.topic) : ''}${l.sec ? ` · <span class="tt">⏱ ${talk(l.sec)}</span>` : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
-   <section class="osec"><h4>Orders</h4>${ords.length ? `<ul class="fvl">${ords.map(o => `<li><b>${esc(o.id)}</b> · ${fmt(o.date)} · <span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span><div>${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') + ' · <b class="num">' + rupee(oval(o)) + '</b>' : '<span class="muted">Products to be confirmed by the service team</span>'}</div></li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No orders yet.</p>'}</section>
+   <section class="osec"><h4>Orders</h4>${ords.length ? `<ul class="fvl">${ords.map(o => `<li><b>${esc(o.id)}</b>${otalk(o.id)} · ${fmt(o.date)} · <span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span><div>${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') + ' · <b class="num">' + rupee(oval(o)) + '</b>' : '<span class="muted">Products to be confirmed by the service team</span>'}</div></li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No orders yet.</p>'}</section>
    <section class="osec"><h4>Callbacks</h4>${fu.length ? `<ul class="fvl">${fu.map(x => `<li><span class="chip ${x.due < TODAY ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span> ${esc(x.why || '')}${x.notify ? ' · reminder on' : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No callback set.</p>'}</section></div>`;
   if (PLANG === 'hi') { el.setAttribute('lang', 'hi'); try { hindiize(el) } catch (e) {} } else el.removeAttribute('lang');
 }
@@ -2392,7 +2397,7 @@ function oeRead() { if (!OE) return; document.querySelectorAll('.oeq').forEach(x
   const v = id => $(id) ? $(id).value : undefined; if ($('oe-store')) { OE.disc = 0; OE.store = v('oe-store'); OE.pref = v('oe-pref'); OE.urgent = $('oe-urg').checked; OE.urgentWhy = v('oe-why'); OE.note = v('oe-note') } }
 function orderRow(o, all, inFarmer) {
   const fl = oflags(o, all), f = FM[o.f], edit = OPEN_FORM && OPEN_FORM.kind === 'ord' && OPEN_FORM.id === o.id;
-  return `<li><div><div class="rn">${inFarmer ? esc(o.id) : `<button class="lk" data-farmer="${o.f}" data-tab="orders">${esc(f.short)}</button> <span class="rm">${esc(o.id)}</span>`} <span class="rm">· ${fmt(o.date)} · ${esc(OPS.STORES[o.store].name)}</span></div>
+  return `<li><div><div class="rn">${inFarmer ? esc(o.id) : `<button class="lk" data-farmer="${o.f}" data-tab="orders">${esc(f.short)}</button> <span class="rm">${esc(o.id)}</span>`}${otalk(o.id)} <span class="rm">· ${fmt(o.date)} · ${esc(OPS.STORES[o.store].name)}</span></div>
    <div class="rw">${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') + ` · <b class="num">${rupee(oval(o))}</b>` : '<span class="muted">Products to be confirmed by the service team</span>'}</div>
    <div class="chips" style="margin-top:4px">${o.urgent ? chip('solid', 'Urgent' + (o.urgentWhy ? ': ' + o.urgentWhy : '')) : ''}${fl.map(([k, t]) => chip(k, t)).join('')}${o.note ? chip('mute', o.note) : ''}</div>
    ${edit ? orderEditor(o) : ''}</div>
@@ -2894,7 +2899,7 @@ function myOrderList(x) {
   const srcs = [...new Set(x.P.map(o => o.source))], any = MY.st || MY.pay || MY.src || MY.kind || MY.q;
   const rows = L.slice(MY.page * PG, MY.page * PG + PG).map(o => { const op = MY.open === o.id, f = o.fid && FM[o.fid];
     const prods = o.items.length ? esc(o.items[0][0]) + (o.items.length > 1 ? ` <span class="muted">+${o.items.length - 1} more</span>` : '') : '<span class="muted">To be confirmed</span>';
-    return `<tr class="orow${op ? ' open' : ''}" data-act="mopen" data-id="${o.id}" tabindex="0" aria-expanded="${op}"><td><span class="oid num">${esc(o.id)}</span>${o.isNew ? ' ' + chip('green', 'New') : ''}</td>
+    return `<tr class="orow${op ? ' open' : ''}" data-act="mopen" data-id="${o.id}" tabindex="0" aria-expanded="${op}"><td><span class="oid num">${esc(o.id)}</span>${o.isNew ? ' ' + chip('green', 'New') : ''}${otalk(o.id)}</td>
      <td><span class="kind ${o.kind}">${o.kind === 'FARMER' ? 'Farmer' : 'Retailer'}</span></td>
      <td>${f ? `<button class="lk" data-farmer="${f.id}">${esc(o.who)}</button>` : esc(o.who)}<div class="rm">${prods}</div></td>
      <td class="n">${o.items.length ? `<b>${rupee(o.amt)}</b>` : '<span class="muted">To be confirmed</span>'}</td><td>${payPill(o.pay)}</td><td><span class="srcp">${esc(SRCL[o.source] || o.source)}</span></td>
@@ -3237,6 +3242,7 @@ function saveOutcome() {
     else { S.undecided.push({f: f.id, at: TODAY, back: addDays(TODAY, o.back), note: note, why: o.purpose}); msg = 'Closed as undecided · back in the queue on ' + fmt(addDays(TODAY, o.back)) } }
   if (o.fu) S.fup[o.fu.id] = Object.assign(S.fup[o.fu.id] || {}, {status: 'done'});
   addLog({f: f.id, ch: 'Call', topic: o.topic, out: notInt ? 'Not interested' : {order: 'Ordered', callback: 'Callback', undecided: 'Undecided'}[o.kind], note: note || OKIND.find(k => k[0] === o.kind)[1], cbToday: o.kind === 'callback' && o.cbDate === TODAY, sec: callSecs(f.id)});
+  if (o.kind === 'order') { const L0 = S.log[S.log.length - 1], no = S.newOrders.filter(x => x.f === f.id && x.date === TODAY).pop(); if (no && L0 && L0.sec && !no.sec) no.sec = L0.sec }
   S.rating[f.id] = Object.assign(S.rating[f.id] || {}, {interest: o.interest, trust: o.trust, by: 'R3', on: TODAY, confirmed: true});
   if (S.callOrder && S.callOrder.f === f.id) S.callOrder = null;
   save(); OUT = null; CALLING = null; renderOutcome();
@@ -3301,7 +3307,7 @@ function vAfter() {
   return `<div class="pagehead"><div><h2>After calls</h2><p>Every call ends in one of three places.</p></div></div>
   <div class="after3">
    <section class="card acol"><div class="ach o"><h3>Orders</h3><span>${ords.length}</span></div><p class="rm">Handled by the service team: stock, delivery and payment.</p>
-    ${ords.length ? `<ul class="alist">${ords.map(o => { const f = FM[o.f]; return f ? `<li><div>${who(f)}<div class="rw">${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') : '<span class="muted">Products to be confirmed by the service team</span>'}</div><div class="rm num">${esc(o.id)} · ${fmt(o.date)}${o.items.length ? ' · ' + rupee(oval(o)) : ''}${o.fromCall || S.newOrders.some(n => n.id === o.id) ? '' : ' · ' + 'sample'}</div></div><span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span></li>` : '' }).join('')}</ul>` : '<p class="empty">No orders yet.</p>'}</section>
+    ${ords.length ? `<ul class="alist">${ords.map(o => { const f = FM[o.f]; return f ? `<li><div>${who(f)}<div class="rw">${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') : '<span class="muted">Products to be confirmed by the service team</span>'}</div><div class="rm num">${esc(o.id)}${otalk(o.id)} · ${fmt(o.date)}${o.items.length ? ' · ' + rupee(oval(o)) : ''}${o.fromCall || S.newOrders.some(n => n.id === o.id) ? '' : ' · ' + 'sample'}</div></div><span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span></li>` : '' }).join('')}</ul>` : '<p class="empty">No orders yet.</p>'}</section>
    <section class="card acol"><div class="ach c"><h3>Callbacks</h3><span>${cbs.length}</span></div><p class="rm">Yours to call back. Due ones are in today's call queue.</p>
     ${cbs.length ? `<ul class="alist">${cbs.map(x => { const f = FM[x.f]; if (!f) return ''; const late = x.due < TODAY;
       return `<li><div>${who(f)}<div class="rw">${esc(x.why)}</div></div><div class="arr"><span class="chip ${late ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${late ? relDue(x.due) : x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span><div class="acts" style="justify-content:flex-end">${x.due <= TODAY ? `<button class="btn sm" data-act="gocall" data-id="${f.id}">${CALLING === f.id ? 'On call' : 'Call'}</button>` : ''}<button class="btn ghost sm" data-act="resch" data-id="${x.id}">Reschedule</button></div></div></li>` }).join('')}</ul>` : '<p class="empty">No callbacks set.</p>'}</section>
@@ -3568,7 +3574,7 @@ function deskReport() {
   const Q = callQueue(), fu = allFup();
   const orders = [...new Map(S.newOrders.map(o => [o.id, o])).values()].map(o0 => { const o = Object.assign({}, o0, S.ord[o0.id] || {});
     return {id: o.id, f: o.f, name: nm(o.f), phone: ph(o.f), date: o.date, status: o.status, store: o.store, disc: o.disc || 0, urgent: !!o.urgent, approval: !!o.approval, fromCall: !!o.fromCall,
-      items: o.items.map(x => [x[0], x[1], Math.round(lineAmt(x))]), value: Math.round(oval(o))} });
+      items: o.items.map(x => [x[0], x[1], Math.round(lineAmt(x))]), value: Math.round(oval(o)), sec: orderSec(o.id)} });
   return {
     v: 1, at: new Date().toISOString(), today: TODAY,
     farmers: F.filter(f => !f.sample).map(f => ({id: f.id, name: f.short, phone: f.phone, village: f.village, district: f.district, pin: f.pin, crop: f.cropName, variety: f.variety || '',

@@ -210,13 +210,13 @@ function vOrders() {
   const L = orderRows(), live = L.filter(o => !DEAD.includes(o.status));
   return `${head('Orders from calls', 'Orders placed on the agronomist desks · ' + perLabel())}
   <div class="kpis" style="margin-top:14px"><div class="kpi g"><span>Orders</span><b class="num">${live.length}</b><small>${L.length - live.length} cancelled / returned</small></div>
-   <div class="kpi g"><span>Value</span><b class="num">${rupee(live.reduce((t, o) => t + (o.value || 0), 0))}</b><small>after discounts</small></div>
-   <div class="kpi w"><span>Need discount approval</span><b class="num">${L.filter(o => o.approval).length}</b><small>discount above the limit</small></div>
+   <div class="kpi g"><span>Value</span><b class="num">${rupee(live.reduce((t, o) => t + (o.value || 0), 0))}</b><small>at list prices</small></div>
+   <div class="kpi w"><span>Avg talk time per order</span><b class="num">${(() => { const T = live.filter(o => o.sec); return T.length ? talk(Math.round(T.reduce((t, o) => t + o.sec, 0) / T.length)) : '–' })()}</b><small>${live.filter(o => o.sec).length} timed order calls</small></div>
    <div class="kpi r"><span>Urgent</span><b class="num">${L.filter(o => o.urgent).length}</b><small>marked urgent on the call</small></div></div>
   <section class="card" style="margin-top:18px">${filters('', 'orders')}
-   ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Order</th><th>Agronomist</th><th>Farmer</th><th>Products</th><th class="n">Value</th><th>Status</th></tr></thead><tbody>
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Order</th><th>Agronomist</th><th>Farmer</th><th>Products</th><th class="n">Value</th><th class="n">Talk time</th><th>Status</th></tr></thead><tbody>
    ${L.map(o => `<tr><td class="num">${fmtD(o.date)}</td><td class="num rm">${esc(o.id)}</td><td>${esc(o.ag.name)}</td><td>${who(o.name, o.phone)}</td>
-     <td>${(o.items || []).map(([p, q, v]) => `${esc(p)} <span class="rm">× ${q}</span>`).join('<br>')}</td><td class="n num"><b>${rupee(o.value)}</b>${o.disc ? `<div class="rm">${o.disc}% off</div>` : ''}</td>
+     <td>${(o.items || []).map(([p, q, v]) => `${esc(p)} <span class="rm">× ${q}</span>`).join('<br>')}</td><td class="n num"><b>${rupee(o.value)}</b>${o.disc ? `<div class="rm">${o.disc}% off</div>` : ''}</td><td class="n num">${o.sec ? talk(o.sec) : '<span class="rm">–</span>'}</td>
      <td>${chip(DEAD.includes(o.status) ? 'hot' : o.status === 'Delivered' ? 'ok' : 'blue', o.status)}${o.approval ? ' ' + chip('warm', 'Approval') : ''}${o.urgent ? ' ' + chip('hot', 'Urgent') : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No orders in this period.</p>'}</section>`;
 }
 
@@ -355,7 +355,7 @@ function csv(kind) {
   const q = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v };
   let H, R;
   if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Call time (sec)', 'Call time', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.sec || '', c.sec ? talk(c.sec) : '', c.note]) }
-  if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Discount %', 'Status', 'Needs approval', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.disc, o.status, o.approval ? 'yes' : '', o.urgent ? 'yes' : '']) }
+  if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Talk time (sec)', 'Talk time', 'Status', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.sec || '', o.sec ? talk(o.sec) : '', o.status, o.urgent ? 'yes' : '']) }
   if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
   if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Source', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];
     R = allLists().filter(x => LDAY === 'all' || !LDAY || x.day === LDAY).map(({a, u, s, day}) => [day, u.at, a.name, u.name, u.source || '', u.by || '', s.farmers, s.called, s.conn, s.nr, s.pending, s.orders, s.value, s.conn ? Math.round(100 * s.ordFarmers / s.conn) : '', s.pops, s.cbs]) }
