@@ -1063,6 +1063,8 @@ button.pwrap.pkw{all:unset;display:flex;gap:10px;align-items:flex-start;cursor:p
 .pkl{font-size:12px;color:var(--green);font-weight:600}
 .hiab p{margin:4px 0 0;line-height:1.65}.hib{margin:4px 0 0;padding-left:20px;line-height:1.6}.hib li{margin:3px 0}.hib b{color:var(--deep)}
 .pkc .hiab{margin-top:10px}.pkc .hiab .sl{font-size:12px}
+.ctm{font-size:13px;color:#CFE3D6;white-space:nowrap}.ctm b{color:#fff;font-size:15px}
+.tt{color:var(--deep);font-weight:600;white-space:nowrap}
 /* production: account area, save status, banners */
 .acct{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#CFE3D6;white-space:nowrap}
@@ -1624,7 +1626,7 @@ function goBack() { const r = RET || {view: 'farmers', y: 0}; RET = null; VIEW =
 /* the call starts when the farmer profile is opened from the call brief, and ends with Complete call on that profile */
 function openCall(id) {
   if (CALLING && CALLING !== id && FM[CALLING]) { toast('Complete the call with ' + FM[CALLING].short + ' first'); id = CALLING }
-  const f = FM[id]; if (!f) return; const fresh = CALLING !== id; QSEL = id; CALLING = id; QK = null;
+  const f = FM[id]; if (!f) return; const fresh = CALLING !== id; QSEL = id; CALLING = id; QK = null; if (fresh) startCallTimer(id);
   if (fresh) { try { navigator.clipboard.writeText(f.phone).catch(() => {}) } catch (e) {} toast('On call with ' + f.short + ' · ' + f.phone + ' (number copied)') }
   if (VIEW !== 'today' && VIEW !== 'farmer') RET = null;
   go('farmer', id, 'crop');
@@ -1674,7 +1676,7 @@ function todayCalls() {
   const hrNow = demoHour(), act = (OPS.MYACT || []).filter(a => a.kind === 'call' && a.dAgo === 0 && a.hr <= hrNow);
   const logs = S.log.filter(l => l.d === TODAY && (l.ch === 'Call'));
   const calls = [...act.map(a => ({hr: a.hr, out: a.out, topic: a.topic, secs: a.secs})),
-    ...logs.map(l => ({hr: l.hr ?? hrNow, out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: 0}))];
+    ...logs.map(l => ({hr: l.hr ?? hrNow, out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: l.sec || 0}))];
   const con = calls.filter(c => c.out === 'Connected'), talk = con.filter(c => c.secs);
   return {calls, con, avg: talk.length ? Math.round(talk.reduce((t, c) => t + c.secs, 0) / talk.length) : 0, hrNow};
 }
@@ -1684,11 +1686,18 @@ function callLog() {
   (OPS.MYACT || []).filter(a => a.kind === 'call' && a.dAgo === 0).forEach((a, i) => { if (a.hr > hrNow) return;
     out.push({hr: a.hr, min: (i * 13) % 60, f: FM[ids[(i * 7) % ids.length]], out: a.out, topic: a.topic || '', secs: a.secs || 0, sample: true}) });
   S.log.filter(l => l.d === TODAY && l.ch === 'Call').forEach(l => { const [h, m] = (l.at || '').replace(/\s?[AP]M/i, '').split(':').map(Number);
-    const pm = /PM/i.test(l.at || '') && h !== 12 ? 12 : 0; out.push({hr: l.hr ?? hrNow, min: isNaN(m) ? 0 : m, f: FM[l.f], out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: 0, note: l.note, result: l.out}) });
+    const pm = /PM/i.test(l.at || '') && h !== 12 ? 12 : 0; out.push({hr: l.hr ?? hrNow, min: isNaN(m) ? 0 : m, f: FM[l.f], out: l.out === 'Not reachable' ? 'No answer' : 'Connected', topic: l.topic, secs: l.sec || 0, note: l.note, result: l.out}) });
   return out.filter(c => c.f).sort((a, b) => (b.hr * 60 + b.min) - (a.hr * 60 + a.min));
 }
 const hm = c => ((c.hr % 12) || 12) + ':' + String(c.min).padStart(2, '0') + (c.hr < 12 ? ' AM' : ' PM');
 let QK = null, CALLING = null;
+/* call timing: starts when the agronomist clicks Call, stops when the call is completed; saved on that call as sec (seconds) */
+let CALL_T0 = 0, CALL_TICK = null;
+const talk = s => s == null ? '' : s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+const clock = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+function callSecs(fid) { if (!CALL_T0 || CALLING !== fid) return null; const s = Math.min(3600, Math.max(1, Math.round((Date.now() - CALL_T0) / 1000))); CALL_T0 = 0; clearInterval(CALL_TICK); try { sessionStorage.removeItem('gd_call') } catch (e) {} return s }
+function startCallTimer(fid, t0) { CALL_T0 = t0 || Date.now(); try { sessionStorage.setItem('gd_call', JSON.stringify({f: fid, t0: CALL_T0})) } catch (e) {}
+  clearInterval(CALL_TICK); CALL_TICK = setInterval(() => { const el = document.getElementById('calltimer'); if (el && CALL_T0) el.textContent = clock(Math.round((Date.now() - CALL_T0) / 1000)) }, 1000) }
 function tileList(k, ctx) {
   const mmss = s => s ? Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's' : '–';
   const head = (t, sub, cols, rows, empty) => `<div class="qkp"><div class="qkph"><h3>${t}</h3><span class="rm">${sub}</span><button class="lk" data-act="qk" data-k="${k}">Close</button></div>
@@ -2019,7 +2028,7 @@ function renderFView() {
      <div class="rm">${esc([locv(f.village), locv(f.district)].filter(Boolean).join(', ') || 'Village not filled')}${locv(f.pin) ? ' · ' + esc(f.pin) : ''} · <span class="num">${esc(f.phone)}</span> · ${f.acres || 0} acres · rating ${r.sc} (${esc(r.band)})</div></div>
      <div class="acts"><button class="btn ghost sm" type="button" data-act="fvopen" data-id="${f.id}">Open full profile</button><button class="btn ghost sm" type="button" data-act="fvclose">Close</button></div></div>
    <section class="osec"><h4>Crops</h4><ul class="fvl">${crops}</ul>${notesBox(f.id, true)}</section>
-   <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · <b>${esc(l.out || '')}</b>${l.topic ? ' · ' + esc(l.topic) : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
+   <section class="osec"><h4>Calls and interactions <small class="rm">latest ${logs.length}</small></h4>${logs.length ? `<ul class="fvl">${logs.map(l => `<li><span class="num rm">${fmt(l.d)}${l.at ? ' ' + esc(l.at) : ''}</span> ${esc(l.ch)} · <b>${esc(l.out || '')}</b>${l.topic ? ' · ' + esc(l.topic) : ''}${l.sec ? ` · <span class="tt">⏱ ${talk(l.sec)}</span>` : ''}${l.note ? `<div>${esc(l.note)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No calls logged yet.</p>'}</section>
    <section class="osec"><h4>Orders</h4>${ords.length ? `<ul class="fvl">${ords.map(o => `<li><b>${esc(o.id)}</b> · ${fmt(o.date)} · <span class="st ${o.status.split(' ')[0]}">${esc(o.status)}</span><div>${o.items.length ? o.items.map(([p, q]) => q + ' × ' + esc(p)).join(', ') + ' · <b class="num">' + rupee(oval(o)) + '</b>' : '<span class="muted">Products to be confirmed by the service team</span>'}</div></li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No orders yet.</p>'}</section>
    <section class="osec"><h4>Callbacks</h4>${fu.length ? `<ul class="fvl">${fu.map(x => `<li><span class="chip ${x.due < TODAY ? 'solid' : x.due === TODAY ? 'warm' : 'blue'}">${x.due === TODAY ? 'Today' : fmt(x.due)}${x.time ? ' · ' + esc(x.time) : ''}</span> ${esc(x.why || '')}${x.notify ? ' · reminder on' : ''}</li>`).join('')}</ul>` : '<p class="rm" style="margin:0">No callback set.</p>'}</section></div>`;
   if (PLANG === 'hi') { el.setAttribute('lang', 'hi'); try { hindiize(el) } catch (e) {} } else el.removeAttribute('lang');
@@ -2035,7 +2044,7 @@ function vFarmer() {
   const dup = OPS.DUP[f.id], fu = fupOf(f.id)[0];
   const body = FTAB === 'orders' ? tOrders(f, ords) : FTAB === 'cattle' ? tCattle(f, cat) : tCrop(f);
   const onCall = CALLING === f.id;
-  return `${onCall ? '' : `<button class="lk" data-act="back" style="margin-bottom:8px">← ${RET && RET.view === 'today' ? 'Back to call queue' : RET && RET.view === 'after' ? 'Back to After calls' : RET && RET.view === 'me' ? 'Back to My profile' : 'All farmers'}</button>`}${onCall ? `<div class="cbcall oncall"><span class="cbdot"></span><div><b>On call with ${esc(f.short)}</b><span class="num">${esc(f.phone)}</span></div><button class="btn ghost sm" data-copy="${esc(f.phone)}">Copy number</button><button class="btn sm cbend" data-act="qcomplete">Complete call</button></div>` : ''}
+  return `${onCall ? '' : `<button class="lk" data-act="back" style="margin-bottom:8px">← ${RET && RET.view === 'today' ? 'Back to call queue' : RET && RET.view === 'after' ? 'Back to After calls' : RET && RET.view === 'me' ? 'Back to My profile' : 'All farmers'}</button>`}${onCall ? `<div class="cbcall oncall"><span class="cbdot"></span><div><b>On call with ${esc(f.short)}</b><span class="num">${esc(f.phone)}</span></div><span class="ctm" title="Call time since you clicked Call">⏱ <b class="num" id="calltimer">${CALL_T0 ? clock(Math.round((Date.now() - CALL_T0) / 1000)) : '0:00'}</b></span><button class="btn ghost sm" data-copy="${esc(f.phone)}">Copy number</button><button class="btn sm cbend" data-act="qcomplete">Complete call</button></div>` : ''}
   <section class="card"><div class="fhead"><div><div class="fnm">${NAMED === f.id ? `<form class="fnmf" id="fnmf"><input type="text" id="fnm-in" value="${esc(f.short)}" maxlength="60" aria-label="Farmer name" autocomplete="off"><button class="btn sm" type="submit">Save</button><button class="btn ghost sm" type="button" data-act="namecancel">Cancel</button></form>`
       : `<h2><button type="button" class="fnbtn" data-act="nameedit" title="Click to edit the farmer's name">${esc(f.short)}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4L6 12.4 3 13l.6-3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="sr">Edit name</span></button></h2>`}<div class="seg3 lang plang nohi" role="group" aria-label="Profile language"><button type="button" data-act="plang" data-k="en" aria-pressed="${PLANG !== 'hi'}">English</button><button type="button" data-act="plang" data-k="hi" aria-pressed="${PLANG === 'hi'}" lang="hi">हिंदी</button></div></div>
     ${LOCED === f.id ? `<form class="locf" id="locf"><label class="field"><span>Village</span><input type="text" id="loc-vil" value="${esc(locv(f.village))}" placeholder="Village / gaon" autocomplete="off"></label>
@@ -2065,7 +2074,7 @@ function cropSwitch(f) {
 /* weather and crop advice: one line when closed, the full forecast and advice when opened */
 function recentLog(f) {
   const L = logsOf(f.id).slice(0, 3); if (!L.length) return '';
-  return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · <b>' + esc(l.out) + '</b>' : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
+  return `<section class="card rlog"><div class="rlh"><b>Last interactions</b><span class="rm">${logsOf(f.id).length} in all</span></div><ul>${L.map(l => `<li><span class="num">${l.d === TODAY ? 'Today' : fmt(l.d)}${l.at ? ', ' + esc(l.at) : ''}</span><span>${esc(l.ch || 'Call')}${l.out ? ' · <b>' + esc(l.out) + '</b>' : ''}${l.sec ? ` · <span class="tt">⏱ ${talk(l.sec)}</span>` : ''}${l.note ? ' · ' + esc(l.note) : ''}</span></li>`).join('')}</ul></section>`;
 }
 function wxCard(f, info, days, w) {
   if (!info.ok && !WXOPEN) WXOPEN = true;
@@ -3214,11 +3223,11 @@ function saveOutcome() {
     if (notInt) { S.undecided.push({f: f.id, at: TODAY, back: null, ni: true, note: note, why: o.purpose}); msg = 'Closed as not interested · will not come back into the call queue' }
     else { S.undecided.push({f: f.id, at: TODAY, back: addDays(TODAY, o.back), note: note, why: o.purpose}); msg = 'Closed as undecided · back in the queue on ' + fmt(addDays(TODAY, o.back)) } }
   if (o.fu) S.fup[o.fu.id] = Object.assign(S.fup[o.fu.id] || {}, {status: 'done'});
-  addLog({f: f.id, ch: 'Call', topic: o.topic, out: notInt ? 'Not interested' : {order: 'Ordered', callback: 'Callback', undecided: 'Undecided'}[o.kind], note: note || OKIND.find(k => k[0] === o.kind)[1], cbToday: o.kind === 'callback' && o.cbDate === TODAY});
+  addLog({f: f.id, ch: 'Call', topic: o.topic, out: notInt ? 'Not interested' : {order: 'Ordered', callback: 'Callback', undecided: 'Undecided'}[o.kind], note: note || OKIND.find(k => k[0] === o.kind)[1], cbToday: o.kind === 'callback' && o.cbDate === TODAY, sec: callSecs(f.id)});
   S.rating[f.id] = Object.assign(S.rating[f.id] || {}, {interest: o.interest, trust: o.trust, by: 'R3', on: TODAY, confirmed: true});
   if (S.callOrder && S.callOrder.f === f.id) S.callOrder = null;
   save(); OUT = null; CALLING = null; renderOutcome();
-  backToQueue(); toast('Call completed · ' + msg);
+  const ls = S.log[S.log.length - 1]; backToQueue(); toast('Call completed' + (ls && ls.sec ? ' in ' + talk(ls.sec) : '') + ' · ' + msg);
 }
 /* after a call: back to the call queue where you left it, next farmer selected */
 function backToQueue() {
@@ -3260,14 +3269,14 @@ function busyPanel(o, f) {
 function busySave() {
   const o = OUT, f = FM[o.fid], {day} = busySlots(o.bDay), why = o.bWhy || BUSY_WHY[0], nb = $('o-bnotify'); if (nb) o.bNotify = nb.checked;
   if (o.bNotify) askNotifyPermission();
-  addLog({f: f.id, ch: 'Call', topic: 'Other', out: 'Not reachable', note: why + ' · call again ' + (day === TODAY ? 'today' : fmt(day)) + ' ' + o.bTime});
+  addLog({f: f.id, ch: 'Call', topic: 'Other', out: 'Not reachable', note: why + ' · call again ' + (day === TODAY ? 'today' : fmt(day)) + ' ' + o.bTime, sec: callSecs(f.id)});
   if (o.fu) S.fup[o.fu.id] = Object.assign(S.fup[o.fu.id] || {}, {status: 'done'});
   S.newFup.push(Object.assign({id: 'N' + Date.now(), f: f.id, due: day, time: o.bTime, why: why + ': ' + (o.fu ? o.fu.why : o.purpose || 'call again'), reason: why, by: 'Agronomist'}, o.bNotify ? {notify: true} : {}));
-  save(); OUT = null; CALLING = null; renderOutcome(); backToQueue(); toast(`${f.short}: ${why.toLowerCase()} · call again ${day === TODAY ? 'today' : day === addDays(TODAY, 1) ? 'tomorrow' : fmt(day)} at ${o.bTime}${o.bNotify ? ' · reminder on' : ''}`);
+  save(); OUT = null; CALLING = null; renderOutcome(); backToQueue(); const lsb = S.log[S.log.length - 1]; toast(`${f.short}: ${why.toLowerCase()} · call again ${day === TODAY ? 'today' : day === addDays(TODAY, 1) ? 'tomorrow' : fmt(day)} at ${o.bTime}${o.bNotify ? ' · reminder on' : ''}${lsb && lsb.sec ? ' · call time ' + talk(lsb.sec) : ''}`);
 }
 function noAnswer() {
-  const f = FM[OUT.fid]; addLog({f: f.id, ch: 'Call', topic: 'Other', out: 'Not reachable', note: "Didn't pick up"});
-  save(); OUT = null; CALLING = null; renderOutcome(); backToQueue(); toast(f.short + " didn't pick up · stays in the call queue");
+  const f = FM[OUT.fid]; addLog({f: f.id, ch: 'Call', topic: 'Other', out: 'Not reachable', note: "Didn't pick up", sec: callSecs(f.id)});
+  save(); OUT = null; CALLING = null; renderOutcome(); backToQueue(); const lsn = S.log[S.log.length - 1]; toast(f.short + " didn't pick up · stays in the call queue" + (lsn && lsn.sec ? ' · call time ' + talk(lsn.sec) : ''));
 }
 /* ================= After calls: where each call ended up ================= */
 function vAfter() {
@@ -3549,7 +3558,7 @@ function deskReport() {
     v: 1, at: new Date().toISOString(), today: TODAY,
     farmers: F.filter(f => !f.sample).map(f => ({id: f.id, name: f.short, phone: f.phone, village: f.village, district: f.district, pin: f.pin, crop: f.cropName, variety: f.variety || '',
       sow: f.sowISO || '', acres: f.acres, stage: f.stageEn, crops: f.cropList.map(c => cropLbl(c) + (c.sow && c.sow > TODAY ? ' (future, sowing ' + fmt(c.sow) + ')' : '')), cropNo: f.cropIdx + 1, pop: !!f.pop.ok, missing: f.pop.missing || [], list: f.list || '', filled: !!f.filled})),
-    calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f)})),
+    calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f), sec: l.sec || null})),
     orders,
     uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed, by: u.by && u.by.role === 'admin' ? 'admin' : 'agronomist', source: u.source || '', fids: u.rows.map(x => x.fid)})),
     followups: fu.map(x => ({f: x.f, name: nm(x.f), phone: ph(x.f), due: x.due, time: x.time || '', why: x.why || ''})),

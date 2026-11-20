@@ -136,12 +136,15 @@ const rows = key => pick().flatMap(a => ((a.report && a.report[key]) || []).map(
 const qMatch = (...xs) => !Q || xs.some(x => String(x || '').toLowerCase().includes(Q.toLowerCase()));
 const isCall = c => c.ch === 'Call';
 const connected = c => c.out !== 'Not reachable';
+const talk = s => !s ? '–' : s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+const hms = s => !s ? '–' : s < 600 ? talk(s) : s < 3600 ? Math.round(s / 60) + ' min' : Math.floor(s / 3600) + 'h ' + Math.round(s % 3600 / 60) + 'm';
 
 function stats(a) {
   const r = a.report || {}, calls = (r.calls || []).filter(c => isCall(c) && inPer(c.d)), con = calls.filter(connected);
   const ords = (r.orders || []).filter(o => inPer(o.date) && !DEAD.includes(o.status));
   const fs = r.farmers || [], q = r.queue || {};
-  return {calls: calls.length, con: con.length, contacts: (r.calls || []).filter(c => inPer(c.d)).length, orders: ords.length, value: ords.reduce((t, o) => t + (o.value || 0), 0),
+  const timed = con.filter(c => c.sec), talkSec = timed.reduce((t, c) => t + c.sec, 0);
+  return {calls: calls.length, con: con.length, timed: timed.length, talkSec, avgTalk: timed.length ? Math.round(talkSec / timed.length) : 0, contacts: (r.calls || []).filter(c => inPer(c.d)).length, orders: ords.length, value: ords.reduce((t, o) => t + (o.value || 0), 0),
     pops: (r.pops || []).filter(p => inPer(p.on)).length, farmers: fs.length, popReady: fs.filter(f => f.pop).length,
     lists: (r.uploads || []).filter(u => inPer(u.at)).length, pending: q.pending || 0, overdue: q.overdue || 0, due: q.callbacksDue || 0, needPop: q.needPop || 0,
     callsToday: (r.calls || []).filter(c => isCall(c) && c.d === TODAY).length};
@@ -172,10 +175,10 @@ function vOverview() {
     <div class="kpi r"><span>Callbacks overdue</span><b class="num">${T('overdue')}</b><small>${T('due')} due today or earlier</small></div>
   </div>
   <section class="card" style="margin-top:18px"><h2>Agronomists <small>${perLabel()}</small></h2>
-   ${AGS().length ? `<div class="tw"><table><thead><tr><th>Agronomist</th><th class="n">Calls</th><th class="n">Connected</th><th class="n">Orders</th><th class="n">Value</th><th class="n">POPs filled</th><th class="n">Farmers</th><th class="n">Queue now</th><th class="n">Overdue</th><th>Last saved</th><th></th></tr></thead><tbody>
+   ${AGS().length ? `<div class="tw"><table><thead><tr><th>Agronomist</th><th class="n">Calls</th><th class="n">Connected</th><th class="n">Talk time</th><th class="n">Orders</th><th class="n">Value</th><th class="n">POPs filled</th><th class="n">Farmers</th><th class="n">Queue now</th><th class="n">Overdue</th><th>Last saved</th><th></th></tr></thead><tbody>
    ${S.map(({a, s}) => { const tgt = (a.report && a.report.today === TODAY && a.report.queue && a.report.queue.total) || 0; return `<tr><td><div class="who"><b>${esc(a.name)}</b><span>${esc(a.username)} · ${esc(a.hub || '')}${a.active ? '' : ' · ' + 'switched off'}</span></div></td>
      <td class="n num"><b>${s.calls}</b>${PER === 'today' && tgt ? `<div class="meter" title="Today's queue: ${tgt} farmers"><i style="width:${Math.min(100, 100 * s.calls / tgt)}%"></i></div><span class="rm">of ${tgt}</span>` : ''}</td>
-     <td class="n num">${s.con}</td><td class="n num">${s.orders}</td><td class="n num">${rupee(s.value)}</td><td class="n num">${s.pops}</td>
+     <td class="n num">${s.con}</td><td class="n num">${s.timed ? `<b>${hms(s.talkSec)}</b><div class="rm">avg ${talk(s.avgTalk)} a call</div>` : '<span class="rm">–</span>'}</td><td class="n num">${s.orders}</td><td class="n num">${rupee(s.value)}</td><td class="n num">${s.pops}</td>
      <td class="n num">${s.farmers}<div class="rm">${s.farmers ? Math.round(100 * s.popReady / s.farmers) + '% POP ready' : ''}</div></td>
      <td class="n num">${s.pending}</td><td class="n num">${s.overdue ? chip('hot', s.overdue) : '0'}</td>
      <td><span title="${esc(fmtT(a.saved_at))}">${a.report ? ago(a.saved_at) : 'not opened yet'}</span><div class="rm">login ${ago(a.last_login_at)}</div></td>
@@ -196,9 +199,9 @@ function vCalls() {
   const L = callRows(), outs = [...new Set(rows('calls').map(c => c.out).filter(Boolean))].sort();
   return `${head('Calls and contacts', 'Every call, visit and WhatsApp logged on the desks · ' + perLabel())}
   <section class="card" style="margin-top:14px">${filters(`<select id="outf" aria-label="Outcome"><option value="">All outcomes</option>${outs.map(o => `<option${o === OUTF ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`, 'calls')}
-   <p class="rm" style="margin:0 0 6px">${L.length} entries · ${L.filter(isCall).length} calls · ${L.filter(c => isCall(c) && connected(c)).length} connected</p>
-   ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Agronomist</th><th>Farmer</th><th>Channel</th><th>Topic</th><th>Outcome</th><th>Note</th></tr></thead><tbody>
-   ${L.slice(0, 600).map(c => `<tr><td class="num">${fmtD(c.d)}<div class="rm">${esc(c.at)}</div></td><td>${esc(c.ag.name)}</td><td>${who(c.name, c.phone)}</td><td>${esc(c.ch)}</td><td>${esc(c.topic)}</td><td>${outChip(c.out)}</td><td style="max-width:360px">${esc(c.note)}</td></tr>`).join('')}</tbody></table></div>${L.length > 600 ? '<p class="rm">Showing the latest 600. Download the CSV for all.</p>' : ''}` : '<p class="empty">No calls in this period.</p>'}</section>`;
+   ${(() => { const tc = L.filter(c => isCall(c) && connected(c) && c.sec), ts = tc.reduce((t, c) => t + c.sec, 0); return `<p class="rm" style="margin:0 0 6px">${L.length} entries · ${L.filter(isCall).length} calls · ${L.filter(c => isCall(c) && connected(c)).length} connected${tc.length ? ` · talk time ${hms(ts)} on ${tc.length} timed calls, avg ${talk(Math.round(ts / tc.length))}` : ''}</p>` })()}
+   ${L.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Agronomist</th><th>Farmer</th><th>Channel</th><th>Topic</th><th>Outcome</th><th class="n">Call time</th><th>Note</th></tr></thead><tbody>
+   ${L.slice(0, 600).map(c => `<tr><td class="num">${fmtD(c.d)}<div class="rm">${esc(c.at)}</div></td><td>${esc(c.ag.name)}</td><td>${who(c.name, c.phone)}</td><td>${esc(c.ch)}</td><td>${esc(c.topic)}</td><td>${outChip(c.out)}</td><td class="n num">${c.sec ? talk(c.sec) : '<span class="rm">–</span>'}</td><td style="max-width:360px">${esc(c.note)}</td></tr>`).join('')}</tbody></table></div>${L.length > 600 ? '<p class="rm">Showing the latest 600. Download the CSV for all.</p>' : ''}` : '<p class="empty">No calls in this period.</p>'}</section>`;
 }
 
 /* ---------- orders ---------- */
@@ -351,7 +354,7 @@ function vTeam() {
 function csv(kind) {
   const q = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v };
   let H, R;
-  if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.note]) }
+  if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Call time (sec)', 'Call time', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, c.sec || '', c.sec ? talk(c.sec) : '', c.note]) }
   if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Discount %', 'Status', 'Needs approval', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.disc, o.status, o.approval ? 'yes' : '', o.urgent ? 'yes' : '']) }
   if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
   if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Source', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];
