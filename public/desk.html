@@ -3577,6 +3577,9 @@ document.addEventListener('click', e => { if (CROPDD && !e.target.closest('.crop
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && (e.target.classList.contains('orow') || e.target.classList.contains('qrow'))) { e.preventDefault(); e.target.click(); return } if (e.key === 'Escape' && AF) { AF = null; renderAF(); return } if (e.key === 'Escape' && CV) { CV = null; catalog(); return } if (e.key === 'Escape' && RS) { RS = null; renderResched(); return } if (e.key === 'Escape' && UPL) { UPL = null; renderUpload(); return } if (e.key === 'Escape' && !$('drawer').hidden) drawer(false) });
 /* ================= report for the admin desk ================= */
 /* Built from this desk on every save, so the admin sees exactly what the agronomist sees (names, values, stages). */
+/* the farmer's latest call list (not removed): its name, upload time and the priority given there */
+function listInfo(fid) { for (let i = S.uploads.length - 1; i >= 0; i--) { const u = S.uploads[i]; if (!u || u.removed || !u.rows) continue; const x = u.rows.find(r => r.fid === fid);
+  if (x) return {name: u.name, at: u.at, source: u.source || '', pri: x.priTxt || (upHasPri(u) ? {high: 'High', med: 'Medium', low: 'Low'}[x.pri || 'med'] : '')} } return null }
 function deskReport() {
   const nm = id => FM[id] ? FM[id].short : '', ph = id => FM[id] ? FM[id].phone : '';
   const Q = callQueue(), fu = allFup();
@@ -3586,7 +3589,8 @@ function deskReport() {
   return {
     v: 1, at: new Date().toISOString(), today: TODAY,
     farmers: F.filter(f => !f.sample).map(f => ({id: f.id, name: f.short, phone: f.phone, village: f.village, district: f.district, pin: f.pin, crop: f.cropName, variety: f.variety || '',
-      sow: f.sowISO || '', acres: f.acres, stage: f.stageEn, crops: f.cropList.map(c => cropLbl(c) + (c.sow && c.sow > TODAY ? ' (future, sowing ' + fmt(c.sow) + ')' : '')), cropNo: f.cropIdx + 1, pop: !!f.pop.ok, missing: f.pop.missing || [], list: f.list || '', filled: !!f.filled})),
+      sow: f.sowISO || '', acres: f.acres, stage: f.stageEn, crops: f.cropList.map(c => cropLbl(c) + (c.sow && c.sow > TODAY ? ' (future, sowing ' + fmt(c.sow) + ')' : '')), cropNo: f.cropIdx + 1, pop: !!f.pop.ok, missing: f.pop.missing || [], list: f.list || '', filled: !!f.filled,
+      cropsD: f.cropList.map(c => ({crop: c.crop ? cropLbl({crop: c.crop}) : '', variety: c.variety || '', sow: c.sow || '', acres: c.acres || null})), ...(() => { const li = listInfo(f.id); return li ? {pri: li.pri, listAt: li.at, listSrc: li.source} : {} })()})),
     calls: S.log.map(l => ({d: l.d, at: l.at || '', hr: l.hr, ch: l.ch, out: l.out, topic: l.topic || '', note: l.note || '', f: l.f, name: nm(l.f), phone: ph(l.f), sec: tsec(l)})),
     orders,
     uploads: S.uploads.filter(u => !u.seeded).map(u => ({id: u.id, name: u.name, at: u.at, rows: u.rows.length, counts: u.counts || {}, removed: !!u.removed, by: u.by && u.by.role === 'admin' ? 'admin' : 'agronomist', source: u.source || '', fids: u.rows.map(x => x.fid)})),

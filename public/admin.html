@@ -356,7 +356,21 @@ function vTeam() {
 function csv(kind) {
   const q = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v };
   let H, R;
-  if (kind === 'calls') { H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Call time (sec)', 'Call time', 'Note']; R = callRows().map(c => [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, csec(c) || '', csec(c) ? talk(csec(c)) : '', c.note]) }
+  if (kind === 'calls') {   /* the CSV carries farmer details the table on screen does not show */
+    const FMAP = new Map(), LAST = new Map();
+    AGS().forEach(a => { ((a.report && a.report.farmers) || []).forEach(f => FMAP.set(a.id + '|' + f.id, f));
+      ((a.report && a.report.calls) || []).filter(isCall).forEach(c => { const k = a.id + '|' + c.f, p = LAST.get(k); if (!p || String(c.d) >= String(p.d)) LAST.set(k, c) }) });
+    const tag = c => !c ? '' : c.out === 'Ordered' ? 'Order placed' : c.out === 'Callback' ? 'Callback' : c.out === 'Undecided' ? 'Undecided' : c.out === 'Not interested' ? 'Not interested'
+      : c.out === 'Not reachable' ? (/^busy/i.test(c.note || '') ? 'Busy - call later' : 'Not connected') : c.out || '';
+    const crops = f => f && f.cropsD && f.cropsD.length ? f.cropsD : f ? [{crop: f.crop || '', variety: f.variety || '', sow: f.sow || '', acres: f.acres || null}] : [];
+    const fut = c => c.sow && c.sow > TODAY;
+    H = ['Date', 'Time', 'Agronomist', 'Farmer', 'Phone', 'Channel', 'Topic', 'Outcome', 'Tag', 'Call time (sec)', 'Call time', 'Note',
+      'Land size (acres)', 'Priority', 'No. of crops', 'Crop names', 'Date of sowing', 'Uploaded list', 'List uploaded on', 'List source', 'Farmer latest tag'];
+    R = callRows().map(c => { const f = FMAP.get(c.ag.id + '|' + c.f), cs = crops(f).filter(x => x.crop), land = cs.filter(x => !fut(x)).reduce((t, x) => t + (+x.acres || 0), 0) || (f && f.acres) || '';
+      return [c.d, c.at, c.ag.name, c.name, c.phone, c.ch, c.topic, c.out, isCall(c) ? tag(c) : '', csec(c) || '', csec(c) ? talk(csec(c)) : '', c.note,
+        land, (f && f.pri) || '', cs.length || '', cs.map(x => x.crop + (x.variety ? ' (' + x.variety + ')' : '') + (fut(x) ? ' - future' : '')).join('; '),
+        cs.map(x => x.sow ? (cs.length > 1 ? x.crop + ': ' : '') + x.sow + (fut(x) ? ' (planned)' : '') : '').filter(Boolean).join('; '),
+        (f && f.list) || '', f && f.listAt ? String(f.listAt).slice(0, 10) : '', (f && f.listSrc) || '', tag(LAST.get(c.ag.id + '|' + c.f))] }) }
   if (kind === 'orders') { H = ['Date', 'Order', 'Agronomist', 'Farmer', 'Phone', 'Products', 'Value', 'Talk time (sec)', 'Talk time', 'Status', 'Urgent']; R = orderRows().map(o => [o.date, o.id, o.ag.name, o.name, o.phone, (o.items || []).map(([p, n]) => n + ' x ' + p).join('; '), o.value, o.sec || '', o.sec ? talk(o.sec) : '', o.status, o.urgent ? 'yes' : '']) }
   if (kind === 'farmers') { H = ['Agronomist', 'Farmer', 'Phone', 'Village', 'District', 'Pincode', 'Crop', 'Variety', 'Sowing date', 'Acres', 'Stage', 'POP ready', 'Missing', 'List', 'All crops']; R = farmerRows().map(f => [f.ag.name, f.name, f.phone, f.village, f.district, f.pin, f.crop, f.variety, f.sow, f.acres, f.stage, f.pop ? 'yes' : 'no', (f.missing || []).join(' '), f.list, (f.crops || []).join(' | ')]) }
   if (kind === 'lists') { H = ['Upload day', 'Uploaded at', 'Agronomist', 'List', 'Source', 'Uploaded by', 'Farmers', 'Called', 'Connected', 'Not reachable', 'Not called yet', 'Orders', 'Order value', 'Conversion %', 'POPs filled', 'Callbacks open'];
