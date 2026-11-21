@@ -27,7 +27,7 @@ module.exports = route(async (req, res) => {
   }
   const sp = new URL(req.url, 'http://x').searchParams;
   const after = Math.max(0, parseInt(sp.get('after') || '0', 10) || 0), since = sp.get('since');
-  await query(`UPDATE users SET last_seen = now() WHERE id = $1`, [u.id]);
+  await query(`UPDATE users SET last_seen = now() WHERE id = $1 AND (last_seen IS NULL OR last_seen < now() - interval '50 seconds')`, [u.id]);
   const cols = `id, user_id, name, role, CASE WHEN deleted THEN '' ELSE body END AS body, deleted, at`;
   const { rows: messages } = after
     ? await query(`SELECT ${cols} FROM chat_messages WHERE id > $1 ORDER BY id LIMIT 200`, [after])

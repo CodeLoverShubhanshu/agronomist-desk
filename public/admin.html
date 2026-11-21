@@ -454,7 +454,9 @@ $('pwBtn').onclick = async () => {
 load();
 /* team chat: unread count on the tab */
 if (window.GDChat) { GDChat.onChange(() => { try { const b = document.querySelector('.tab[data-tab="chat"]'); if (b) { const n = GDChat.unread(); b.innerHTML = 'Team chat' + (n ? `<b>${n}</b>` : '') } } catch (e) {} }); GDChat.start() }
-setInterval(() => { if (!document.hidden && !EDIT && !NEWU && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) load(true) }, 60000);
+/* refresh every 5 minutes while the admin is using the page (not when the tab is hidden or idle), so the database can sleep */
+let ADM_ACT = Date.now(); ['pointerdown', 'keydown', 'wheel'].forEach(ev => document.addEventListener(ev, () => ADM_ACT = Date.now(), {passive: true}));
+setInterval(() => { if (!document.hidden && Date.now() - ADM_ACT < 10 * 60e3 && !EDIT && !NEWU && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) load(true) }, 5 * 60e3);
 </script>
 </body>
 </html>

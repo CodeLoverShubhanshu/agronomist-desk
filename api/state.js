@@ -56,6 +56,8 @@ module.exports = route(async (req, res) => {
     query(`INSERT INTO desk_snapshots (user_id, day, state, report, version) VALUES ($1, (now() AT TIME ZONE 'Asia/Kolkata')::date, $2::jsonb, $3::jsonb, $4)
            ON CONFLICT (user_id, day) DO UPDATE SET state = EXCLUDED.state, report = COALESCE(EXCLUDED.report, desk_snapshots.report), version = EXCLUDED.version, saved_at = now()`,
       [me.id, st, rp, rows[0].version]).catch(e => console.error('snapshot', e.message));
+    // keep only the last 3 days of backup copies, so the free database does not fill up
+    if (Math.random() < 0.05) query(`DELETE FROM desk_snapshots WHERE day < (now() AT TIME ZONE 'Asia/Kolkata')::date - 3`).catch(() => {});
     if (force) audit(me.id, 'save_forced', { version: rows[0].version });
     const out = { version: rows[0].version, updated_at: rows[0].updated_at };
     if (rows[0].kept > 0) out.adminLists = rows[0].kept;

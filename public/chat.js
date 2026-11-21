@@ -35,7 +35,12 @@
       if (S.root && document.visibilityState === 'visible' && S.last > S.read) markRead();
     }).catch(function (e) { S.err = e.message }).then(function () { S.busy = false; paint(); notify(); schedule() });
   }
-  function schedule() { clearTimeout(S.timer); S.timer = setTimeout(poll, S.root && document.visibilityState === 'visible' ? 4000 : 20000) }
+  /* light on the database: no checks while the tab is hidden or nobody has used the page for 5 minutes (they restart on the next touch);
+     every 8 s while the chat is open, every 60 s otherwise */
+  var IDLE_MS = 5 * 60e3; S.act = Date.now();
+  function idle() { return document.visibilityState !== 'visible' || Date.now() - S.act > IDLE_MS }
+  function schedule() { clearTimeout(S.timer); S.timer = null; if (idle()) return; S.timer = setTimeout(function () { if (idle()) { S.timer = null; return } poll() }, S.root ? 8000 : 60000) }
+  function wake() { var was = idle(); S.act = Date.now(); if (S.started && (was || !S.timer) && !S.busy && document.visibilityState === 'visible') { clearTimeout(S.timer); poll() } }
   function markRead() { var to = S.last; if (to <= S.read) return; S.read = to; notify(); api('POST', {read: to}).catch(function () {}) }
   function send() {
     var ta = S.root && S.root.querySelector('.gdc-in'); if (!ta || S.sending) return; var body = ta.value.trim(); if (!body) return;
@@ -163,6 +168,7 @@
   }
   function unmount() { if (!S.root) return; S.root = null; schedule() }
   function start() { if (S.started) return; S.started = true; poll();
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { clearTimeout(S.timer); poll() } }) }
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') wake(); else { clearTimeout(S.timer); S.timer = null } });
+    var last = 0; ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, function () { var n = Date.now(); if (n - last > 5000) { last = n; wake() } else S.act = n }, {passive: true, capture: true}) }) }
   window.GDChat = {mount: mount, unmount: unmount, start: start, unread: unread, onChange: function (f) { S.subs.push(f) }, onMessage: function (f) { S.onMsg.push(f) }};
 })();
