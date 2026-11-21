@@ -36,6 +36,14 @@ h1,h2,h3{font-family:var(--display);margin:0;color:var(--deep)}
 .seg{display:flex;gap:2px;background:#E9EFEC;border-radius:10px;padding:3px}
 .seg button{border:0;background:transparent;padding:6px 12px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:8px}
 .seg button[aria-pressed="true"]{background:#fff;color:var(--deep);box-shadow:0 1px 2px rgba(20,35,28,.12)}.seg button:focus-visible{outline:2px solid var(--green)}
+.usecard.warm{border-color:#F0CFA5}.usecard.hot{border-color:#F2C6C8;background:#FFFAFA}
+.use-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.use-top h2{margin:0;font-size:17px}.use-msg{margin:6px 0 12px;font-size:14px}
+.use-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.use{display:flex;flex-direction:column;gap:5px}.use-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13.5px;color:var(--muted)}
+.use-h b{font-size:17px;color:var(--ink)}.use-h b small{font-size:12px;color:var(--muted);font-weight:500}.use>small{font-size:12.5px;color:var(--muted)}
+.use-bar{display:flex;height:9px;border-radius:5px;background:#E9EEEB;overflow:hidden}.use-bar i{display:block;height:100%;background:var(--leaf)}.use-bar i.p{background:repeating-linear-gradient(135deg,#BFD8C8 0 4px,#E9EEEB 4px 7px)}
+.use.warm .use-bar i:first-child{background:#E8A15A}.use.warm .use-bar i.p{background:repeating-linear-gradient(135deg,#F3CFA6 0 4px,#E9EEEB 4px 7px)}
+.use.hot .use-bar i:first-child{background:var(--hot)}.use.hot .use-bar i.p{background:repeating-linear-gradient(135deg,#F2B8BB 0 4px,#E9EEEB 4px 7px)}.use.hot>small{color:var(--hot)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;border-top:4px solid var(--line)}
 .kpi span{font-size:13px;color:var(--muted);font-weight:500}.kpi b{font:700 28px/1.1 var(--display);letter-spacing:-.02em}.kpi small{font-size:12.5px;color:var(--muted)}
@@ -174,6 +182,33 @@ const outCell = c => c.ch === 'Note' ? (c.link ? `${chip(c.link.out === 'Ordered
 const outChip = o => chip(o === 'Ordered' ? 'ok' : o === 'Not reachable' ? 'hot' : o === 'Callback' ? 'blue' : o === 'Undecided' ? 'warm' : o === 'Not interested' ? '' : 'violet', o || '–');
 
 /* ---------- overview ---------- */
+/* ===== database usage against the free plan (early warning) ===== */
+let USAGE = null;
+function usageCard() {
+  const U = USAGE; if (!U || !U.limits) return '';
+  const L = U.limits, today = localISO(new Date()), y = +today.slice(0, 4), mo = +today.slice(5, 7), dim = new Date(y, mo, 0).getDate(), dom = +today.slice(8, 10);
+  const from = U.trackedFrom ? localISO(new Date(U.trackedFrom)) : today, start = from.slice(0, 7) === today.slice(0, 7) ? +from.slice(8, 10) : 1;
+  const daysSoFar = Math.max(1, dom - start + 1), left = dim - dom;
+  const awakeH = U.days.reduce((t, d) => t + d.awakeMin, 0) / 60, cuh = awakeH * L.cu, gb = U.days.reduce((t, d) => t + d.bytes, 0) / 1e9, sto = U.storage / 1e9;
+  const fmtN = (n, d) => n >= 100 ? Math.round(n) : n.toFixed(d), endD = n => fmtD(addDays(today, Math.max(0, Math.ceil(n))));
+  const meter = (label, used, limit, unit, perDay, d) => {
+    const proj = perDay == null ? used : used + perDay * left, pct = Math.min(100, 100 * used / limit);
+    const runOut = perDay > 0 && proj >= limit ? (limit - used) / perDay : null;
+    const lvl = used >= 0.9 * limit || runOut != null ? 'hot' : proj >= 0.7 * limit || used >= 0.6 * limit ? 'warm' : 'ok';
+    const sub = perDay == null ? `${Math.round(100 * used / limit)}% used · this does not reset monthly`
+      : runOut != null ? (used >= limit ? 'Limit reached: the database is stopped until the month resets' : `At this pace it runs out around <b>${endD(runOut)}</b>`)
+      : `about ${fmtN(perDay, 2)} ${unit}/day · month end ≈ ${fmtN(proj, 1)} ${unit} (${Math.round(100 * proj / limit)}%)`;
+    return {lvl, html: `<div class="use ${lvl}"><div class="use-h"><span>${label}</span><b class="num">${fmtN(used, 2)} <small>of ${limit} ${unit}</small></b></div>
+      <div class="use-bar"><i style="width:${Math.max(pct, used > 0 ? 1.5 : 0)}%"></i>${perDay != null && proj > used ? `<i class="p" style="width:${Math.min(100 - pct, 100 * (proj - used) / limit)}%"></i>` : ''}</div><small>${sub}</small></div>`};
+  };
+  const M = [meter('Running time (estimate)', cuh, L.cuHours, 'CU-hours', cuh / daysSoFar), meter('Data sent (estimate)', gb, L.transferGB, 'GB', gb / daysSoFar), meter('Storage', sto, L.storageGB, 'GB', null)];
+  const worst = M.some(m => m.lvl === 'hot') ? 'hot' : M.some(m => m.lvl === 'warm') ? 'warm' : 'ok';
+  const msg = {ok: 'On track: the free plan should last the month at the current pace.', warm: 'Getting close: keep an eye on this, or plan to upgrade the database.',
+    hot: 'Warning: at this pace the database will stop before the month ends. Upgrade the Neon plan (Vercel → Storage → Neon → Billing) to avoid the desk going down.'}[worst];
+  return `<section class="card usecard ${worst}" style="margin-top:14px"><div class="use-top"><h2>Database usage · free plan</h2><span class="chip ${worst === 'ok' ? 'ok' : worst}">${worst === 'ok' ? 'On track' : worst === 'warm' ? 'Getting close' : 'Action needed'}</span></div>
+    <p class="use-msg">${msg}</p><div class="use-grid">${M.map(m => m.html).join('')}</div>
+    <p class="sub" style="margin:10px 0 0;font-size:12.5px">Counted since ${fmtD(from < today.slice(0, 8) + '01' ? today.slice(0, 8) + '01' : from)} · resets at the start of each month. Running time and data sent are the desk's own estimates; Neon's exact figures are on its Billing page.</p></section>`;
+}
 function vOverview() {
   const S = AGS().map(a => ({a, s: stats(a)})), T = k => S.reduce((t, x) => t + x.s[k], 0);
   const tc = T('calls'), tcon = T('con'), to = T('orders');
@@ -181,6 +216,7 @@ function vOverview() {
   const per = days.map(d => { const L = all.filter(c => c.d === d); return {d, n: L.length, c: L.filter(connected).length} }), mx = Math.max(4, ...per.map(x => x.n));
   const log = (DATA.logins || []).slice(0, 10);
   return `${head('Team overview', `${AGS().filter(a => a.active).length} active agronomists · ${perLabel()} · refreshed ${new Date(DATA.now).toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}`)}
+  ${usageCard()}
   <div class="kpis" style="margin-top:14px">
     <div class="kpi b"><span>Calls made</span><b class="num">${tc}</b><small>${tcon} connected${tc ? ' · ' + Math.round(100 * tcon / tc) + '%' : ''}</small></div>
     <div class="kpi g"><span>Orders from calls</span><b class="num">${to}</b><small>${tcon ? Math.round(100 * to / tcon) + '% of connected calls' : '–'}</small></div>
@@ -407,8 +443,8 @@ function render() {
 }
 async function load(quiet) {
   try {
-    const [o, u] = await Promise.all([api('/api/admin/overview'), api('/api/admin/users')]);
-    DATA = o; USERS = u.users; TODAY = localISO(new Date()); render();
+    const [o, u, g] = await Promise.all([api('/api/admin/overview'), api('/api/admin/users'), api('/api/admin/usage').catch(() => null)]);
+    DATA = o; USERS = u.users; if (g) USAGE = g; TODAY = localISO(new Date()); render();
   } catch (e) { if (!quiet) $('view').innerHTML = `<section class="card"><h2>Could not load</h2><p>${esc(e.message)}</p><button class="btn" type="button" onclick="location.reload()">Try again</button></section>` }
 }
 document.addEventListener('click', async e => {
